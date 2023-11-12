@@ -37,9 +37,16 @@
 static struct
 {
 	workload_tt workload;              /**< Input workload.           */
+<<<<<<< HEAD
 	array_tt  threads;                 /**< Working threads.          */
 	const struct scheduler *scheduler; /**< Loop scheduling strategy. */
 	int chunksize;                     /**< Chunk size.               */
+=======
+    array_tt cores;                    /**< Cores to process tasks.   */
+	const struct scheduler *scheduler; /**< Loop scheduling strategy. */
+	const struct processer *processer; /**< Core processing strategy. */
+	int batchsize;                     /**< Scheduling batch size.    */
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
 	void (*kernel)(workload_tt);       /**< Application kernel.       */
 } args = { NULL, NULL, NULL, 1, NULL };
 
@@ -109,6 +116,7 @@ static void usage(void)
 	printf("Usage: simsched [options] <scheduler>\n");
 	printf("Brief: loop scheduler simulator\n");
 	printf("Options:\n");
+<<<<<<< HEAD
 	printf("  --arch <filename>     Architecture file.\n");
 	printf("  --chunksize <number>  Chunk size.\n");
 	printf("  --kernel <name>       Kernel complexity.\n");
@@ -126,6 +134,28 @@ static void usage(void)
 	printf("  binlpt   Bin Packing LPT Scheduling\n");
 	printf("  srr      Smart Round-Robin Scheduling\n");
 	printf("  static   Static Scheduling\n");
+=======
+	printf("  --arch <filename>       Cores' architecture file.\n");
+	printf("  --process <name>        Cores' processing strategy\n");
+	printf("           non-preemptive       Non-preemptive\n");
+	printf("           random-preemptive    Random preemptive.\n");
+	printf("           rr-preemptive        Round-Robin Quantum = 10\n");
+	printf("  --batchsize <number>    Batch size.\n");
+	printf("  --kernel <name>         Kernel complexity.\n");
+	printf("           linear               Linear kernel\n");
+	printf("           logarithmic          Logarithm kernel\n");
+	printf("           quadratic            Quadratic kernel\n");
+	printf("  --input <filename>      Input workload file\n");
+	printf("  --help                  Display this message.\n");
+	printf("Schedulers:\n");
+	// printf("  guided   Guided Scheduling\n");
+	// printf("  dynamic  Dynamic Scheduling\n");
+	// printf("  hss      History-Aware Scheduling\n");
+	// printf("  kass     Knowledge-Based Scheduling\n");
+	// printf("  binlpt   Bin Packing LPT Scheduling\n");
+	// printf("  srr      Smart Round-Robin Scheduling\n");
+	printf("  fcfs   First-Come, First-Served Scheduling\n");
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
 
 	exit(EXIT_SUCCESS);
 }
@@ -154,6 +184,7 @@ static workload_tt get_workload(const char *filename)
 }
 
 /**
+<<<<<<< HEAD
  * @brief Gets threads.
  *
  * @param filename Architecture filename.
@@ -161,7 +192,17 @@ static workload_tt get_workload(const char *filename)
  *
  * @returns Working threads.
  */
-static array_tt get_threads(const char *filename, int nthreads)
+static array_tt get_threads(const char *filename, int nthreads, int ntasks)
+=======
+ * @brief Gets cores.
+ * 
+ * @param afilename        Input architecture filename.
+ * @param ncores           Number of cores in architecture, will be obtained from "afilename"
+ * 
+ * @return Working cores. 
+*/
+static array_tt get_cores(const char *filename, int ncores)
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
 {
 	FILE *file;       /* Architecture file. */
 	int ncores;       /* Number of cores.   */
@@ -173,6 +214,7 @@ static array_tt get_threads(const char *filename, int nthreads)
 		error("failed to open architecture file");
 
 	assert(fscanf(file, "%d", &ncores) == 1);
+<<<<<<< HEAD
 	if (nthreads < 1)
 		error("bad architecture file");
 
@@ -182,20 +224,37 @@ static array_tt get_threads(const char *filename, int nthreads)
 	threads = array_create(nthreads);
 
 	for (int i = 0; i < nthreads; i++)
+=======
+	if (ncores < 1)
+		error("bad architecture file");
+
+	cores = array_create(ncores);
+
+	for (int i = 0; i < ncores; i++)
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
 	{
 		thread_tt t;  /* Thread.                       */
 		int capacity; /* Thread's processing capacity. */
 		
 		assert(fscanf(file, "%d", &capacity) == 1);
-
-		t = thread_create(capacity);
+<<<<<<< HEAD
+		
+		t = thread_create(capacity, ntasks);
 		array_set(threads, i, t);
+=======
+		c = core_create(capacity);
+		array_set(cores, i, c);
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
 	}
 
 	/* House keeping. */
 	fclose(file);
 
+<<<<<<< HEAD
 	return (threads);
+=======
+	return (cores);
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
 }
 
 /**
@@ -226,9 +285,15 @@ static void (*get_kernel(const char *kernelname))(workload_tt)
  * @param wfilename  Input workload filename.
  * @param afilename  Input architecture filename.
  * @param kernelname Application kernel name.
+<<<<<<< HEAD
  * @param nthreads   Number of workin threads.
  */
 static void checkargs(const char *wfilename, const char *afilename, const char *kernelname, int nthreads)
+=======
+ * @param quantum    
+*/
+static void checkargs(const char *wfilename, const char *afilename, const char *kernelname)
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
 {
 	if (afilename == NULL)
 		error("missing architecture file");
@@ -236,8 +301,13 @@ static void checkargs(const char *wfilename, const char *afilename, const char *
 		error("missing input workload file");
 	if (kernelname == NULL)
 		error("missing kernel name");
+<<<<<<< HEAD
 	if (nthreads == 0)
 		error("missing number of working threads");
+=======
+	if (args.processer == NULL)
+		error("missing cores' processing strategy.");
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
 	if (args.scheduler == NULL)
 		error("missing loop scheduling strategy");
 }
@@ -253,7 +323,11 @@ static void readargs(int argc, const char **argv)
 	const char *wfilename = NULL;
 	const char *afilename = NULL;
 	const char *kernelname = NULL;
+<<<<<<< HEAD
 	int nthreads = 0;
+=======
+    int ncores = 0;
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
 
 	/* Parse command line arguments. */
 	for (int i = 1; i < argc; i++)
@@ -266,12 +340,11 @@ static void readargs(int argc, const char **argv)
 			wfilename = argv[++i];
 		else if (!strcmp(argv[i], "--kernel"))
 			kernelname = argv[++i];
-		else if (!strcmp(argv[i], "--nthreads"))
-			nthreads = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "--help"))
 			usage();
 		else
 		{
+<<<<<<< HEAD
 			if (!strcmp(argv[i], "guided"))
 				args.scheduler = sched_guided;
 			else if (!strcmp(argv[i], "dynamic"))
@@ -288,13 +361,38 @@ static void readargs(int argc, const char **argv)
 				args.scheduler = sched_static;
 			else
 				error("unsupported loop scheduling strategy");
+=======
+			// if (!strcmp(argv[i], "guided"))
+			// 	args.scheduler = sched_guided;
+			// else if (!strcmp(argv[i], "dynamic"))
+			// 	args.scheduler = sched_dynamic;
+			// else if (!strcmp(argv[i], "hss"))
+			// 	args.scheduler = sched_hss;
+			// else if (!strcmp(argv[i], "kass"))
+			// 	args.scheduler = sched_kass;
+			// else if (!strcmp(argv[i], "binlpt"))
+			// 	args.scheduler = sched_binlpt;
+			// else if (!strcmp(argv[i], "srr"))
+			// 	args.scheduler = sched_srr;
+			// else if (!strcmp(argv[i], "static"))
+
+            if (!strcmp(argv[i], "fcfs"))
+                args.scheduler = sched_fcfs;
+			else
+				error("unsupported scheduling strategy");
+
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
 		}
 	}
 
-	checkargs(wfilename, afilename, kernelname, nthreads);
+	checkargs(wfilename, afilename, kernelname);
 
 	args.workload = get_workload(wfilename);
-	args.threads = get_threads(afilename, nthreads);
+<<<<<<< HEAD
+	args.threads = get_threads(afilename, nthreads, workload_ntasks(args.workload));
+=======
+    args.cores = get_cores(afilename, ncores);
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
 	args.kernel = get_kernel(kernelname);
 }
 
@@ -313,6 +411,7 @@ int main(int argc, const char **argv)
 
 	srand(time(NULL)^getpid());
 
+<<<<<<< HEAD
 	simshed(args.workload, args.threads, args.scheduler, args.chunksize);
 
 	/* House keeping, */
@@ -322,6 +421,19 @@ int main(int argc, const char **argv)
 		thread_destroy(t);
 	}
 	array_destroy(args.threads);
+=======
+	workload_sort(args.workload, WORKLOAD_ARRIVAL);
+
+	simsched(args.workload, args.cores, args.scheduler, args.processer, args.batchsize);
+
+	/* House keeping, */
+	for (int i = 0; i < array_size(args.cores); i++)
+	{
+		core_tt c = array_get(args.cores, i);
+		core_destroy(c);
+	}
+	array_destroy(args.cores);
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
 	workload_destroy(args.workload);
 
 	return (EXIT_SUCCESS);

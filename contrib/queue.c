@@ -167,6 +167,80 @@ void queue_insert(struct queue *q, void *obj)
 }
 
 /**
+ * @brief Inserts an object in a queue at given idx.
+ * 
+ * @param q   Target queue.
+ * @param idx Target index.
+ * @param obj Target object.
+ */
+void queue_insert_at(struct queue *q, void *obj, int idx)
+{
+	struct qnode *node;
+	struct qnode *temp;
+	struct qnode *iterator;
+
+	/* Sanity check. */
+	assert(q != NULL);
+	assert(obj != NULL);
+	assert(idx >= 0 && idx <= queue_size(q));
+
+	/* Link object. */
+	node = qnode_create(obj);
+
+	/* Adding element at the end of queue */
+	if ( idx == queue_size(q) )
+	{
+		q->tail->next = node;
+		q->tail = node;
+		q->size++;
+	} else 
+	{
+		iterator = q->head->next;
+
+		for ( int i = 0; i < idx - 1; i++ )
+		{
+			iterator = iterator->next;
+		}
+
+		temp = iterator->next;
+		iterator->next = node;
+		node->next = temp; 
+	}
+}
+
+
+
+/**
+ * @brief Inserts an object in a specified position in a queue.
+ * 
+ * @param q   Target queue.
+ * @param idx Target index.
+ * @param obj Target object.
+ */
+void *queue_change_elem(struct queue *q, int idx, void *obj)
+{
+	void *return_obj;
+	struct qnode *node;
+
+	/* Sanity check. */
+	assert(q != NULL);
+	assert(obj != NULL);
+	assert(idx >= 0);
+	
+
+	/* Get object. */
+	node = q->head.next;
+	for ( int i = 0; i < idx; i++ )
+	{
+		node = node->next;
+	}
+
+	return_obj = node->obj;
+	node->obj = obj;
+	return (return_obj);
+}
+
+/**
  * @brief Removes an object from a queue.
  * 
  * @param q Target queue.
@@ -195,5 +269,36 @@ void *queue_remove(struct queue *q)
 	obj = node->obj;
 	qnode_destroy(node);
 	
+	return (obj);
+}
+
+/**
+ * @brief Return the nth object from a queue.
+ * 
+ * @param q Target queue.
+ * @param n Object index.
+ * 
+ * @returns The nth object of the queue.
+ */
+void *queue_peek(struct queue *q, int n)
+{
+	void *obj;          /* Object in the first node. */
+	struct qnode *node; /* First node.               */
+
+	/* Sanity check. */
+	assert(q != NULL);
+	assert(q->size >= 0);
+	assert(n <= q->size);
+
+	/* Get object. */
+	node = q->head.next;
+	for ( int i = 0; i < n; i++ )
+	{
+		node = node->next;
+	}
+	obj = node->obj;
+	node = NULL;
+	qnode_destroy(node);
+
 	return (obj);
 }
