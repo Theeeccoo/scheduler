@@ -161,7 +161,7 @@ static workload_tt get_workload(const char *filename)
  *
  * @returns Working threads.
  */
-static array_tt get_threads(const char *filename, int nthreads)
+static array_tt get_threads(const char *filename, int nthreads, int ntasks)
 {
 	FILE *file;       /* Architecture file. */
 	int ncores;       /* Number of cores.   */
@@ -187,8 +187,8 @@ static array_tt get_threads(const char *filename, int nthreads)
 		int capacity; /* Thread's processing capacity. */
 		
 		assert(fscanf(file, "%d", &capacity) == 1);
-
-		t = thread_create(capacity);
+		
+		t = thread_create(capacity, ntasks);
 		array_set(threads, i, t);
 	}
 
@@ -294,7 +294,7 @@ static void readargs(int argc, const char **argv)
 	checkargs(wfilename, afilename, kernelname, nthreads);
 
 	args.workload = get_workload(wfilename);
-	args.threads = get_threads(afilename, nthreads);
+	args.threads = get_threads(afilename, nthreads, workload_ntasks(args.workload));
 	args.kernel = get_kernel(kernelname);
 }
 
