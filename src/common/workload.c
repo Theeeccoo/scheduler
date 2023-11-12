@@ -250,7 +250,7 @@ void workload_sort(struct workload *w, enum workload_sorting sorting)
  * 
  * @returns Sorting map.
  */
-int *workload_sortmap(const struct workload *w)
+int *workload_sortmap(struct workload *w)
 {
 	int *map;
 
@@ -287,7 +287,7 @@ int *workload_sortmap(const struct workload *w)
  * @param outfile Output file.
  * @param w       Target workload.
  */
-void workload_write(FILE *outfile, const struct workload *w)
+void workload_write(FILE *outfile, struct workload *w)
 {
 	/* Sanity check. */
 	assert(outfile != NULL);
@@ -334,7 +334,7 @@ struct workload *workload_read(FILE *infile)
  *
  * @returns The number of tasks in the target workload.
  */
-int workload_ntasks(const struct workload *w)
+int workload_ntasks(struct workload *w)
 {
 	/* Sanity check. */
 	assert(w != NULL);
@@ -343,14 +343,14 @@ int workload_ntasks(const struct workload *w)
 }
 
 /**
- * @brief Returns ith task in a workload.
+ * @brief Returns ith task's workload in a workload.
  *
  * @param w   Target workload.
- * @param idx Index of  target task.
+ * @param idx Index of target task.
  *
- * @returns The ith task in the target workload.
+ * @returns The ith task's workload in the target workload.
  */
-int workload_task(const struct workload *w, int idx)
+int workload_task(struct workload *w, int idx)
 {
 	/* Sanity check. */
 	assert(w != NULL);
@@ -383,7 +383,7 @@ void workload_set_task(struct workload *w, int idx, int load)
  *
  * @returns The cummulative sum array.
  */
-int *workload_cummulative_sum(const struct workload *w)
+int *workload_cummulative_sum(struct workload *w)
 {
 	int *sum;   /* Cummulative sum.     */
 	int ntasks; /* Alias for w->ntasks. */

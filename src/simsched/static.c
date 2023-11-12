@@ -34,7 +34,7 @@
  */
 static struct
 {
-	const_workload_tt workload; /**< Workload.   */
+	workload_tt workload; /**< Workload.   */
 	array_tt threads;           /**< Threads.    */
 	thread_tt *taskmap;         /**< Scheduling. */
 	int chunksize;              /**< Chunksize.  */
@@ -47,7 +47,7 @@ static struct
  * @param threads   Target threads.
  * @param chunksize Chunk size.
  */
-void scheduler_static_init(const_workload_tt workload, array_tt threads, int chunksize)
+void scheduler_static_init(workload_tt workload, array_tt threads, int chunksize)
 {
 	int tidx;      /* Index of working thread. */
 	int ntasks;    /* Workload size.           */

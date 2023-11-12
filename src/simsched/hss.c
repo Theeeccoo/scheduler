@@ -36,7 +36,7 @@
 static struct
 {
 	int i0;                     /**< Last iteration scheduled. */
-	const_workload_tt workload; /**< Workload.                 */
+	workload_tt workload; /**< Workload.                 */
 	array_tt threads;           /**< Threads.                  */
 	int chunksize;              /**< Chunksize.                */
 	int wremaining;             /**< Remaining workload.       */
@@ -49,7 +49,7 @@ static struct
  * @param threads   Target threads.
  * @param chunksize Chunk size.
  */
-void scheduler_hss_init(const_workload_tt workload, array_tt threads, int chunksize)
+void scheduler_hss_init(workload_tt workload, array_tt threads, int chunksize)
 {
 	int ntasks;     /* Number of tasks. */
 	int wremaining; /* Total workload.  */

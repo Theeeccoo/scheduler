@@ -35,7 +35,7 @@
  */
 static struct
 {
-	const_workload_tt workload; /**< Workload.   */
+	workload_tt workload; /**< Workload.   */
 	array_tt threads;           /**< Threads.    */
 	thread_tt *taskmap;         /**< Scheduling. */
 } scheddata = { NULL, NULL, NULL };
@@ -118,7 +118,7 @@ static int *binlpt_compute_commulative_sum(const int *a, int n)
  *
  * @returns Chunk sizes.
  */
-static int *binlpt_compute_chunksizes(const_workload_tt workload, int nchunks)
+static int *binlpt_compute_chunksizes(workload_tt workload, int nchunks)
 {
 	int ntasks;      /* Number of tasks. */
 	int chunkweight;
@@ -170,7 +170,7 @@ static int *binlpt_compute_chunksizes(const_workload_tt workload, int nchunks)
  *
  * @returns Table of chunks.
  */
-static int *binlpt_compute_chunkweights(const_workload_tt workload, const int *chunksizes, int nchunks)
+static int *binlpt_compute_chunkweights(workload_tt workload, const int *chunksizes, int nchunks)
 {
 	int *chunks; /* Chunk weights.   */
 	int ntasks;  /* Number of tasks. */
@@ -205,7 +205,7 @@ static int *binlpt_compute_chunkweights(const_workload_tt workload, const int *c
  * @param threads   Target threads.
  * @param chunksize Chunk size.
  */
-void scheduler_binlpt_init(const_workload_tt workload, array_tt threads, int chunksize)
+void scheduler_binlpt_init(workload_tt workload, array_tt threads, int chunksize)
 {
 	int ntasks;      /* Number of tasks.              */
 	int nthreads;    /* Number of threads.            */
