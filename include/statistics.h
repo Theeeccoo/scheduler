@@ -68,6 +68,10 @@
 	extern distribution_tt dist_gamma(void);
 	extern distribution_tt dist_gaussian(void);
 	extern distribution_tt dist_uniform(void);
+<<<<<<< HEAD
+=======
+	extern distribution_tt dist_poisson(void);
+>>>>>>> 9aff985 (Initial commit.)
 	/**@}*/
 
 #endif /* Statistics. */

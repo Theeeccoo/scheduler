@@ -97,8 +97,15 @@ struct workload *workload_create(histogram_tt h, int skewness, int ntasks)
 
 		n = floor(histogram_class(h, i)*ntasks);
 
+<<<<<<< HEAD
 		for (int j = 0; j < n; j++)
 			w->tasks[k++] = workload_skewness(i, histogram_nclasses(h), skewness);
+=======
+		for (int j = 0; j < n; j++){
+			queue_insert(w->tasks, task_create(workload_skewness(i, histogram_nclasses(h), skewness), 0));
+			k++;
+		}
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
 	}
 
 	/* Check for overflow. */
@@ -250,7 +257,7 @@ void workload_sort(struct workload *w, enum workload_sorting sorting)
  * 
  * @returns Sorting map.
  */
-int *workload_sortmap(const struct workload *w)
+int *workload_sortmap(struct workload *w)
 {
 	int *map;
 
@@ -287,7 +294,7 @@ int *workload_sortmap(const struct workload *w)
  * @param outfile Output file.
  * @param w       Target workload.
  */
-void workload_write(FILE *outfile, const struct workload *w)
+void workload_write(FILE *outfile, struct workload *w)
 {
 	/* Sanity check. */
 	assert(outfile != NULL);
@@ -334,7 +341,7 @@ struct workload *workload_read(FILE *infile)
  *
  * @returns The number of tasks in the target workload.
  */
-int workload_ntasks(const struct workload *w)
+int workload_ntasks(struct workload *w)
 {
 	/* Sanity check. */
 	assert(w != NULL);
@@ -343,14 +350,93 @@ int workload_ntasks(const struct workload *w)
 }
 
 /**
- * @brief Returns ith task in a workload.
+ * @brief Returns ith task's workload in a workload.
  *
- * @param w   Target workload.
- * @param idx Index of  target task.
- *
- * @returns The ith task in the target workload.
+<<<<<<< HEAD
+=======
+ * @param w Target workload.
+ * 
+ * @returns The queue of tasks of a given workload.
  */
-int workload_task(const struct workload *w, int idx)
+queue_tt workload_tasks(const struct workload *w)
+{
+	/* Sanity check. */
+	assert(w != NULL);
+
+	return(w->tasks);
+}
+
+/**
+ * @brief Returns the queue of arrived tasks of a given workload.
+ *
+ * @param w Target workload.
+ * 
+ * @returns The queue of arrived tasks of a given workload.
+ */
+queue_tt workload_arrtasks(const struct workload *w)
+{
+	/* Sanity check. */
+	assert(w != NULL);
+
+	return(w->arrived_tasks);
+}
+
+/**
+ * @brief Returns the queue of arrived tasks of a given workload.
+ *
+ * @param w Target workload.
+ * 
+ * @returns The queue of arrived tasks of a given workload.
+ */
+queue_tt workload_arrtasks(const struct workload *w)
+{
+	/* Sanity check. */
+	assert(w != NULL);
+
+	return(w->arrived_tasks);
+}
+
+/**
+ * @brief Adds new task into tasks array.
+ *
+ * @param w    Target workload.
+ * @param task New task.
+ */
+void workload_set_task(struct workload *w, struct task *t)
+{
+	/* Sanity check. */
+	assert(w != NULL);
+	assert(t != NULL);
+
+	queue_insert(w->tasks, t);
+}
+
+/**
+ * @brief Adds new task into arrived tasks array.
+ *
+ * @param w    Target workload.
+ * @param task New task.
+ */
+void workload_set_arrtask(struct workload *w, struct task *t)
+{
+	/* Sanity check. */
+	assert(w != NULL);
+	assert(t != NULL);
+
+	queue_insert(w->arrived_tasks, t);
+}
+
+/**
+ * @brief Checks if there are tasks that have arrived at g_i moment. 
+ *        If positive, add them into arrived_tasks queue.
+ * 
+>>>>>>> 7f1db94 (Removing thread structure from simulation)
+ * @param w   Target workload.
+ * @param idx Index of target task.
+ *
+ * @returns The ith task's workload in the target workload.
+ */
+int workload_task(struct workload *w, int idx)
 {
 	/* Sanity check. */
 	assert(w != NULL);
@@ -383,7 +469,7 @@ void workload_set_task(struct workload *w, int idx, int load)
  *
  * @returns The cummulative sum array.
  */
-int *workload_cummulative_sum(const struct workload *w)
+int *workload_cummulative_sum(struct workload *w)
 {
 	int *sum;   /* Cummulative sum.     */
 	int ntasks; /* Alias for w->ntasks. */

@@ -35,7 +35,7 @@
  */
 static struct
 {
-	const_workload_tt workload; /**< Workload.   */
+	workload_tt workload; /**< Workload.   */
 	array_tt threads;           /**< Threads.    */
 	thread_tt *taskmap;         /**< Scheduling. */
 } scheddata = { NULL, NULL, NULL };
@@ -47,7 +47,7 @@ static struct
  * @param threads   Target threads.
  * @param chunksize Chunk size.
  */
-void scheduler_srr_init(const_workload_tt workload, array_tt threads, int chunksize)
+void scheduler_srr_init(workload_tt workload, array_tt threads, int chunksize)
 {
 	int ntasks;   /* Number of tasks.      */
 	int nthreads; /* Number of threads.    */

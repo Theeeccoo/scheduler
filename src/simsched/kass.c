@@ -41,7 +41,7 @@ static struct
 	int *wqueues_start;         /**< Start of work queues.             */
 	int *wqueues_end;           /**< Length of work queues.            */
 	int *wqueues_i0;            /**< Current iteration on work queues. */
-	const_workload_tt workload; /**< Workload.                         */
+	workload_tt workload; /**< Workload.                         */
 	array_tt threads;           /**< Threads.                          */
 } scheddata = { 0, 0, NULL, NULL, NULL, NULL, NULL };
 
@@ -229,7 +229,7 @@ static void scheduler_kass_static(void)
  * @param threads   Target threads.
  * @param chunkweight Chunk size.
  */
-void scheduler_kass_init(const_workload_tt workload, array_tt threads, int chunksize)
+void scheduler_kass_init(workload_tt workload, array_tt threads, int chunksize)
 {
 	int nthreads;
 	

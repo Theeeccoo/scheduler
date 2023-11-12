@@ -29,8 +29,8 @@
  */
 struct array
 {
-	int size;        /**< Maximum size. */
-	void **elements; /**< Elements.     */
+	int size;         /**< Maximum size.               */
+	void **elements;  /**< Elements.                   */
 };
 
 /**
