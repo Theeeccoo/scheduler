@@ -103,6 +103,7 @@ static void simsched_dump(array_tt threads)
 
 		t = array_get(threads, i);
 		wtotal = thread_wtotal(t);
+		if ( wtotal == 0 ) continue;
 
 		if (min > wtotal)
 			min = wtotal;
@@ -128,6 +129,13 @@ static void simsched_dump(array_tt threads)
 
 	/* Print statistics. */
 	printf("nchunks: %d\n", nchunks);
+	thread_tt aux = array_get(threads, 0);	
+	for ( int i = 0; i < thread_num_processed_tasks(aux); i++ ){
+		printf("Task workload: %d // Task waiting time: %d - (tsid: %d)\n", task_get_workload(thread_get_task(aux, i)),
+																	        task_get_waiting_time(thread_get_task(aux, i)),
+																	        task_gettsid(thread_get_task(aux, i)));
+	}
+
 	printf("time: %lf\n", max);
 	printf("cost: %lf\n", max*nthreads);
 	printf("performance: %lf\n", total/max);
@@ -165,6 +173,35 @@ static thread_tt choose_thread(queue_tt q)
 }
 
 /**
+ * @brief Process the workload tasks assigned to a specified thread.
+ *
+ * @param t Target thread.
+ */
+static void process_thread(struct thread *t)
+{
+	int num_processed_tasks = thread_num_processed_tasks(t),
+		num_assigned_tasks  = thread_num_assigned_tasks(t);
+
+	if ( num_assigned_tasks == 0 )
+		return;
+
+	// First task (batch of workload) waits for nothing
+	struct task *foo = thread_get_task(t, num_processed_tasks);
+	task_set_waiting_time(foo, 0);
+
+	for ( int i = num_processed_tasks + 1; i < num_assigned_tasks; i++ )
+	{
+		struct task *barz = thread_get_task(t, i);
+		foo = thread_get_task(t, i - 1);
+
+		// Setting the waiting time of current task to be
+		// the last task's workload + its waiting time
+		task_set_waiting_time(barz, task_get_workload(foo) + task_get_waiting_time(foo));
+		thread_increase_processed_tasks(t);
+	}
+}
+
+/**
  * @brief Simulates a parallel loop.
  *
  * @param w         Workload.
@@ -172,7 +209,7 @@ static thread_tt choose_thread(queue_tt q)
  * @param strategy  Scheduling strategy.
  * @param chunksize Chunksize;
  */
-void simshed(const_workload_tt w, array_tt threads, const struct scheduler *strategy, int chunksize)
+void simshed(workload_tt w, array_tt threads, const struct scheduler *strategy, int chunksize)
 {
 	/* Sanity check. */
 	assert(w != NULL);
@@ -182,6 +219,8 @@ void simshed(const_workload_tt w, array_tt threads, const struct scheduler *stra
 	threads_spawn(threads, strategy->pinthreads);
 
 	strategy->init(w, threads, chunksize);
+
+	queue_tt aux = queue_create();
 
 	/* Simulate. */
 	for (int i = 0; i < workload_ntasks(w); /* noop */)
@@ -193,17 +232,24 @@ void simshed(const_workload_tt w, array_tt threads, const struct scheduler *stra
 
 			t = choose_thread(ready);
 			i += strategy->sched(running, t);
+			queue_insert(aux, t);
 		}
+		/* Processing threads. */
+		while(!queue_empty(aux)){
+			thread_tt t;
 
+			t = choose_thread(aux);
+			process_thread(t);
+		}
 		/* Reschedule running threads. */
 		while (!dqueue_empty(running))
 		{
 			queue_insert(ready, dqueue_remove(running));
-
 			if (dqueue_next_counter(running) != 0)
 				break;
 		}
 	}
+	queue_destroy(aux);
 
 	strategy->end();
 

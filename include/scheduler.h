@@ -36,7 +36,7 @@
 	struct scheduler
 	{
 		bool pinthreads;                                /**< Pin threads? */
-		void (*init)(const_workload_tt, array_tt, int); /**< Initialize.  */
+		void (*init)(workload_tt, array_tt, int); /**< Initialize.  */
 		int (*sched)(dqueue_tt, thread_tt);             /**< Schedule.    */
 		void (*end)(void);                              /**< End.         */
 	};
@@ -57,6 +57,6 @@
 	/* Fordward definitions. */
 	extern int nchunks;
 
-	extern void simshed(const_workload_tt, array_tt, const struct scheduler*, int);
+	extern void simshed(workload_tt, array_tt, const struct scheduler*, int);
 
 #endif /* SCHEDULER_H_ */
