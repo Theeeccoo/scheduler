@@ -22,6 +22,8 @@
 #ifndef THREAD_H_
 #define THREAD_H_
 
+	#include "task.h"
+
 	/**
 	 * @brief Opaque pointer to a thread.
 	 */
@@ -36,12 +38,18 @@
 	 * @name Operations on Thread
 	 */
 	/**@{*/
-	extern thread_tt thread_create(int);
+	extern thread_tt thread_create(int, int);
 	extern void thread_destroy(thread_tt);
 	extern int thread_gettid(const_thread_tt);
 	extern double thread_wtotal(const_thread_tt);
 	extern int thread_assign(thread_tt, int);
 	extern int thread_capacity(const_thread_tt);
+	extern int thread_required_process_time(thread_tt, int);
+	extern task_tt thread_get_task(thread_tt, int);
+	extern int thread_task(thread_tt, int);
+	extern int thread_num_assigned_tasks(thread_tt);
+	extern int thread_num_processed_tasks(thread_tt);
+	extern int thread_increase_processed_tasks(thread_tt);
 	/**@}*/
 
 #endif /* THREAD_H_ */

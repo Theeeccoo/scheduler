@@ -31,9 +31,12 @@
  */
 struct thread
 {
-	int tid;      /**< Identification number,   */
-	int wtotal;   /**< Total assigned workload. */
-	int capacity; /**< Processing capacity.     */
+	int tid;                  /**< Identification number,                  */
+	int wtotal;               /**< Total assigned workload.                */
+	int capacity;             /**< Processing capacity.                    */
+	int num_assigned_tasks;   /**< Number of assigned tasks to a thread.   */
+	int num_processed_tasks;  /**< Number of processed tasks.              */
+	task_tt *tasks;           /**< Tasks allocated to a thread.            */
 };
 
 /**
@@ -45,10 +48,11 @@ static int next_tid = 0;
  * @brief Creates a thread.
  *
  * @param capacity Processing capacity.
+ * @param ntasks   MaxNumber of tasks that a thread might be assigned with.
  *
  * @returns A thread.
  */
-struct thread *thread_create(int capacity)
+struct thread *thread_create(int capacity, int ntasks)
 {
 	struct thread *t;
 
@@ -59,7 +63,13 @@ struct thread *thread_create(int capacity)
 
 	t->tid = next_tid++;
 	t->wtotal = 0;
+	t->num_assigned_tasks = 0;
+	t->num_processed_tasks = 0;
 	t->capacity = capacity;
+
+	// An optimization may be handy here
+	// For the moment, allocatint ntasks for each thread
+	t->tasks = smalloc(sizeof(task_tt) * ntasks);
 
 	return (t);
 }
@@ -74,6 +84,8 @@ void thread_destroy(struct thread *t)
 	/* Sanity check. */
 	assert(t != NULL);
 
+	for ( int i = 0; i < t->num_assigned_tasks; i++ )
+		task_destroy(t->tasks[i]);
 	free(t);
 }
 
@@ -119,10 +131,103 @@ int thread_assign(struct thread *t, int wsize)
 {
 	/* Sanity check. */
 	assert(t != NULL);
-
+	int required_procss_time = t->capacity * wsize;
 	t->wtotal += wsize;
+	t->tasks[t->num_assigned_tasks++] = task_create(required_procss_time);
 
-	return (t->capacity*wsize);
+	return required_procss_time;
+}
+
+/**
+ * @brief Returns the number of processed tasks by a thread.
+ *
+ * @param t Target thread.
+ *
+ * @returns The total number of processed tasks by a thread.
+ */
+int thread_num_processed_tasks(struct thread *t)
+{
+	/* Sanity check. */
+	assert(t != NULL);
+
+	return (t->num_processed_tasks);
+}
+
+/**
+ * @brief Returns the number of assigned tasks to a thread.
+ *
+ * @param t Target thread.
+ *
+ * @returns The total number of assigned tasks to a thread.
+ */
+int thread_num_assigned_tasks(struct thread *t)
+{
+	/* Sanity check. */
+	assert(t != NULL);
+	assert(t->num_assigned_tasks >= 0);
+
+	return (t->num_assigned_tasks);
+}
+
+/**
+ * @brief Increase the number of processed tasks by a thread.
+ *
+ * @param t Target thread.
+ *
+ * @returns The new total number of processed tasks by a thread.
+ */
+int thread_increase_processed_tasks(struct thread *t)
+{
+	/* Sanity check. */
+	assert(t != NULL);
+	assert(t->num_processed_tasks <= t->num_assigned_tasks);
+	t->num_processed_tasks++;
+	return (t->num_processed_tasks);
+}
+
+/**
+ * @brief Returns the required processing time of a given task by a thread.
+ * 
+ * @param t   Target thread.
+ * @param idx Index of a specific task.
+ * 
+ * @returns Required processing time of given workload at the moment.
+ */
+int thread_required_process_time(struct thread *t, int idx)
+{
+	assert(t != NULL);
+	assert(idx < t->num_assigned_tasks);
+	return (t->capacity * task_get_workload(t->tasks[idx]));
+}
+
+/**
+ * @brief Returns the workload of a specific task.
+ * 
+ * @param t   Target thread.
+ * @param idx Index of a specific task.
+ * 
+ * @returns Workload of specified task
+ */
+int thread_task(struct thread *t, int idx)
+{
+	assert(t != NULL);
+	assert(idx < t->num_assigned_tasks);
+	return (task_get_workload(t->tasks[idx]));
+}
+
+/**
+ * @brief Returns a specific thread's task.
+ * 
+ * @param t   Target thread.
+ * @param idx Index of a specific task.
+ * 
+ * @returns A specific task
+ */
+struct task *thread_get_task(struct thread *t, int idx)
+{
+	assert(t != NULL);
+	assert(idx < t->num_assigned_tasks);
+	return (t->tasks[idx]);
 }
 
 /**
