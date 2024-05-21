@@ -43,14 +43,9 @@
 	extern int queue_size(const_queue_tt);
 	extern bool queue_empty(const_queue_tt);
 	extern void queue_insert(queue_tt, void *);
-<<<<<<< HEAD
-	extern void *queue_remove(queue_tt);
-=======
-	extern void queue_insert_at(queue_tt, void *, int);
 	extern void *queue_remove(queue_tt);
 	extern void *queue_peek(queue_tt, int);
 	extern void *queue_change_elem(queue_tt, int, void*);
->>>>>>> 9aff985 (Initial commit.)
 	/**@}*/
 
 #endif /* QUEUE_H_ */

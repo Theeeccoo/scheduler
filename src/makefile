@@ -54,6 +54,7 @@ simsched:                         \
 		simsched/simsched.o       \
 		simsched/core.o           \
 		simsched/fcfs.o           \
+		simsched/srtf.o           \
 		simsched/non_preemptive.o \
 		simsched/preemptive.o     \
 		simsched/rr_preemptive.o  \

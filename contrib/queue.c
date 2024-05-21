@@ -167,50 +167,6 @@ void queue_insert(struct queue *q, void *obj)
 }
 
 /**
- * @brief Inserts an object in a queue at given idx.
- * 
- * @param q   Target queue.
- * @param idx Target index.
- * @param obj Target object.
- */
-void queue_insert_at(struct queue *q, void *obj, int idx)
-{
-	struct qnode *node;
-	struct qnode *temp;
-	struct qnode *iterator;
-
-	/* Sanity check. */
-	assert(q != NULL);
-	assert(obj != NULL);
-	assert(idx >= 0 && idx <= queue_size(q));
-
-	/* Link object. */
-	node = qnode_create(obj);
-
-	/* Adding element at the end of queue */
-	if ( idx == queue_size(q) )
-	{
-		q->tail->next = node;
-		q->tail = node;
-		q->size++;
-	} else 
-	{
-		iterator = q->head->next;
-
-		for ( int i = 0; i < idx - 1; i++ )
-		{
-			iterator = iterator->next;
-		}
-
-		temp = iterator->next;
-		iterator->next = node;
-		node->next = temp; 
-	}
-}
-
-
-
-/**
  * @brief Inserts an object in a specified position in a queue.
  * 
  * @param q   Target queue.
@@ -299,6 +255,7 @@ void *queue_peek(struct queue *q, int n)
 	obj = node->obj;
 	node = NULL;
 	qnode_destroy(node);
+
 
 	return (obj);
 }

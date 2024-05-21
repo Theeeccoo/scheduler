@@ -71,7 +71,7 @@ void core_populate(struct core *c, struct task *ts)
     assert(ts != NULL);
 
     c->wtotal += task_work_left(ts);
-    queue_insert(c->pr_tasks, t);
+    queue_insert(c->pr_tasks, ts);
 }
 
 /**
@@ -86,6 +86,14 @@ void core_vacate(struct core *c)
 
     /* Usually, this queue is emptied throught the simulation */
     for ( int i = 0; i < queue_size(c->pr_tasks); i++ ) queue_remove(c->pr_tasks);
+}
+
+int core_wtotal(const struct core *c)
+{
+    /* Sanity check. */
+	assert(c != NULL);
+
+    return (c->wtotal);
 }
 
 /**
