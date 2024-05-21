@@ -12,9 +12,9 @@
     */
     struct processer
     {
-        void     (*init)(workload_tt, array_tt, array_tt, int*); /**< Initialize processer. */
-        void     (*process)(void);                               /**< Process.              */
-        queue_tt (*end)(void);                                   /**< End processer.        */
+        void (*init)(workload_tt, array_tt, int*); /**< Initialize processer. */
+        void (*process)(void);                     /**< Process.              */
+        void (*end)(void);                         /**< End processer.        */
     };
 
 

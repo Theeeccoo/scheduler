@@ -1,24 +1,3 @@
-/*
- * Copyright(C) 2016 Pedro H. Penna <pedrohenriquepenna@gmail.com>
- * 
- * This file is part of Scheduler.
- *
- * Scheduler is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or (at
- * your option) any later version.
- * 
- * Scheduler is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with Scheduler; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
- */
-
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -30,99 +9,85 @@
 #include <mylib/dqueue.h>
 #include <mylib/queue.h>
 
+#include <core.h>
 #include <scheduler.h>
 #include <workload.h>
-#include <thread.h>
 
 /**
- * @brief Number of chunks.
- */
-int nchunks = 0;
-
-/**
-<<<<<<< HEAD
- * @brief Ready threads.
-=======
  * @brief Global iterator.
 */
 int g_iterator = 0;
 
 /**
  * @brief Ready cores.
->>>>>>> 7f1db94 (Removing thread structure from simulation)
  */
 static queue_tt ready;
 
 /**
-<<<<<<< HEAD
- * @brief Running threads.
-=======
  * @brief Processing cores.
 */
 static queue_tt processing;
 
 /**
  * @brief Running cores.
->>>>>>> 7f1db94 (Removing thread structure from simulation)
  */
-static dqueue_tt running;
+static queue_tt running;
 
-/**
- * @brief Spawns threads.
- *
- * @param threads Working threads.
- * @param pin     Pin threads?
- */
-static void threads_spawn(array_tt threads, bool pinthreads)
+void sort_ascending(int *a, int nelements, int *m)
 {
-	ready = queue_create();	
-	running = dqueue_create();
+	/* Sanity check. */
+	assert(a != NULL);
+	assert(m != NULL);
+	assert(nelements > 0);
 
-	if (!pinthreads)
-		array_shuffle(threads);
-
-	for (int i = 0; i < array_size(threads); i++)
+	/* Short array. */
+	for ( int i = 0; i < nelements; i++ )
 	{
-		thread_tt t = array_get(threads, i);
-		queue_insert(ready, t);
-	}
-}
+		for ( int j = 0; j < nelements; j++ )
+		{
+			if ( a[j] > a[i] )
+			{
+				int tmp; /* Temporary data. */
 
-/**
- * @brief Joins threads.
- */
-static void threads_join(void)
-{
-	dqueue_destroy(running);
-	queue_destroy(ready);
+				tmp = a[i];
+				a[i] = a[j];
+				a[j] = tmp;
+
+				tmp = m[i];
+				m[i] = m[j];
+				m[j] = tmp;
+
+			}
+		}
+	}
+	
 }
 
 /**
  * @brief Dumps simulation statistics.
  *
  * @param cores    Working cores.
- * @param ntasks   Total number of tasks
- * @param finished Array of finished tasks
+ * @param workload Workload.
  */
-static void simsched_dump(array_tt threads)
+static void simsched_dump(array_tt cores, workload_tt w)
 {
 	double min, max, total;
 	double mean, stddev;
-	int nthreads;
-
-	nthreads = array_size(threads);
+	int rounded_index;
+	int ntasks = workload_ntasks(w);
+	int ncores = array_size(cores);
 
 	min = INT_MAX; max = INT_MIN;
 	total = 0; mean = 0.0; stddev = 0.0;
 
 	/* Compute min, max, total. */
-	for (int i = 0; i < nthreads; i++)
+	for (int i = 0; i < ncores; i++)
 	{
-		thread_tt t;   /* Working thread.         */
-		double wtotal; /* Workload assigned to t. */
+		core_tt c;     /* Working core.         */
+		double wtotal; /* Workload assigned to c. */
 
-		t = array_get(threads, i);
-		wtotal = thread_wtotal(t);
+		c = array_get(cores, i);
+		wtotal = core_wtotal(c);
 		if ( wtotal == 0 ) continue;
 
 		if (min > wtotal)
@@ -134,40 +99,66 @@ static void simsched_dump(array_tt threads)
 	}
 
 	/* Compute mean. */
-	mean = ((double) total)/nthreads;
+	mean = ((double) total)/ncores;
 
 	/* Compute stddev. */
-	for (int i = 0; i < nthreads; i++)
+	for (int i = 0; i < ncores; i++)
 	{
-		thread_tt t;
+		core_tt c;
 
-		t = array_get(threads, i);
+		c = array_get(cores, i);
 
-		stddev += pow(thread_wtotal(t) - mean, 2);
+		stddev += pow(core_wtotal(c) - mean, 2);
+	} 
+	stddev = sqrt(stddev/(ncores));
+
+	/** Calculating 99th percentile */
+	int *map        = smalloc(sizeof(int) * ntasks), // 
+		*aux_array  = smalloc(sizeof(int) * ntasks), // Used only for debug purposes                              
+		 percentile = 0,
+		 k          = 0;
+	double percentile_index = 0.0f;
+
+	for ( int i = 0; i < ntasks; i++, k++ )
+	{
+		task_tt curr_task = queue_peek(workload_fintasks(w), i);
+		map[i] = task_gettsid(curr_task);
+		aux_array[ k ] = task_waiting_time(curr_task);
 	}
-	stddev = sqrt(stddev/(nthreads));
 
-	/* Print statistics. */
-	printf("nchunks: %d\n", nchunks);
-	thread_tt aux = array_get(threads, 0);	
-	for ( int i = 0; i < thread_num_processed_tasks(aux); i++ ){
-		printf("Task workload: %d // Task waiting time: %d - (tsid: %d)\n", task_get_workload(thread_get_task(aux, i)),
-																	        task_get_waiting_time(thread_get_task(aux, i)),
-																	        task_gettsid(thread_get_task(aux, i)));
+	sort_ascending(aux_array, ntasks, map);
+
+	// Mapping Task id with its corresponding accumulative waiting_time
+	for ( int i = 0; i < k; i++)
+	{
+		printf("%d %d\n", map[i], aux_array[i]);
+	}
+	percentile_index = (0.99 * ntasks) - 1;
+		
+	rounded_index = round(percentile_index);
+	percentile = ( percentile_index == rounded_index ) ? (aux_array[rounded_index] + aux_array[rounded_index + 1]) / 2 : aux_array[rounded_index];
+	int sum = 0;
+	for ( int i = 0; i < queue_size(workload_fintasks(w)); i++ )
+	{
+		task_tt ts = queue_peek(workload_fintasks(w), i);
+		sum += task_waiting_time(ts);
 	}
 
+	/** Print statistics. */
+	printf("waiting time sum: %d\n", sum);
+	printf("99th Percentile: %d\n", percentile);
 	printf("time: %lf\n", max);
-	printf("cost: %lf\n", max*nthreads);
+	printf("cost: %lf\n", max*ncores);
 	printf("performance: %lf\n", total/max);
 	printf("total: %lf\n", total);
 	printf("cov: %lf\n", stddev/mean);
 	printf("slowdown: %lf\n", max/((double) min));
+
+	free(map);
+	free(aux_array);
 }
 
 /**
-<<<<<<< HEAD
- * @brief Chooses a thread to run next.
-=======
  * @brief Spawns cores.
  *
  * @param cores Working cores.
@@ -184,12 +175,12 @@ static void cores_spawn(array_tt cores, bool pincores)
 	for (int i = 0; i < array_size(cores); i++)
 	{
 		core_tt c = array_get(cores, i);
-		queue_insert(ready, t);
+		queue_insert(ready, c);
 	}
 }
 
 /**
- * @brief Joins threads.
+ * @brief Cleaning queues.
  */
 static void threads_join(void)
 {
@@ -200,7 +191,6 @@ static void threads_join(void)
 
 /**
  * @brief Chooses a core to run next.
->>>>>>> 7f1db94 (Removing thread structure from simulation)
  *
  * @param Target core queue.
  *
@@ -228,84 +218,28 @@ static core_tt choose_core(queue_tt q)
 }
 
 /**
-<<<<<<< HEAD
- * @brief Process the workload tasks assigned to a specified thread.
- *
- * @param t Target thread.
- */
-static void process_thread(struct thread *t)
-{
-	int num_processed_tasks = thread_num_processed_tasks(t),
-		num_assigned_tasks  = thread_num_assigned_tasks(t);
-
-	if ( num_assigned_tasks == 0 )
-		return;
-
-	// First task (batch of workload) waits for nothing
-	struct task *foo = thread_get_task(t, num_processed_tasks);
-	task_set_waiting_time(foo, 0);
-
-	for ( int i = num_processed_tasks + 1; i < num_assigned_tasks; i++ )
-	{
-		struct task *barz = thread_get_task(t, i);
-		foo = thread_get_task(t, i - 1);
-
-		// Setting the waiting time of current task to be
-		// the last task's workload + its waiting time
-		task_set_waiting_time(barz, task_get_workload(foo) + task_get_waiting_time(foo));
-		thread_increase_processed_tasks(t);
-	}
-}
-
-/**
- * @brief Simulates a parallel loop.
-=======
  * @brief Simulates a parallel execution.
->>>>>>> 7f1db94 (Removing thread structure from simulation)
  *
  * @param w         Workload.
  * @param strategy  Scheduling strategy.
- * @param chunksize Chunksize;
+ * @param processer Processing strategy.
+ * @param cores     Working cores.
+ * @param batchsize Batchsize;
  */
-<<<<<<< HEAD
-void simshed(workload_tt w, array_tt threads, const struct scheduler *strategy, int chunksize)
-{
-	/* Sanity check. */
-	assert(w != NULL);
-	assert(threads != NULL);
-=======
 void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, const struct processer *processer, int batchsize)
 {
 	/* Sanity check. */
 	assert(w != NULL);
     assert(cores != NULL);
->>>>>>> 7f1db94 (Removing thread structure from simulation)
 	assert(strategy != NULL);
+	assert(processer != NULL);
 
-<<<<<<< HEAD
-	threads_spawn(threads, strategy->pinthreads);
-
-	strategy->init(w, threads, chunksize);
-
-	queue_tt aux = queue_create();
-
-	/* Simulate. */
-	for (int i = 0; i < workload_ntasks(w); /* noop */)
-	{
-		/* Schedule ready threads. */
-		while (!queue_empty(ready))
-		{
-			thread_tt t;
-=======
 	cores_spawn(cores, strategy->pincores);
-	strategy->init(w batchsize);
+	strategy->init(w, batchsize);
 	processer->init(w, cores, &g_iterator);
 
     processing = queue_create();
 
-	/* TODO Tirar o fato de que a simulação toda ta acontecendo em apenas um nucleo (feito no choose_core). Também, lembrar que as métricas deverão ser calculadas entre os núcleos. */
-	/* TODO ver o que fazer com o dqueue running ai. Caso realmente pra voltar ele, olhar no código original onde ele tava. */
-	
 	/* 
 	 * 'workload' is a critical region, so we must add a queue contention delay to proper analyse.
 	 * This value is accumulative and calculated based on how many iterations was spent scheduling tasks.
@@ -316,12 +250,13 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 	for ( /* noop */ ; workload_totaltasks(w) > 0 ; /* noop */ )
 	{	
 		controller = 0;
+		workload_checktasks(w, g_iterator);
 
 		/* Idle. */
 		if ( workload_currtasks(w) == 0 )
 		{
 			/* If no task arrived, we shouldn't propagate any contention value. */
-			for ( int i = 0; i < array_size(cores); i++ ) core_contention(array_get(cores, i), 0);
+			for ( int i = 0; i < array_size(cores); i++ ) core_set_contention(array_get(cores, i), 0);
 			/* While no task arrived. */
 			while ( workload_currtasks(w) == 0 ) 
 			{ 
@@ -339,7 +274,7 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 			workload_checktasks(w, g_iterator);
 
 			core_tt c = choose_core(ready);
-			
+
             queue_contention = strategy->sched(c);
 			controller += queue_contention;
 
@@ -352,11 +287,12 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 				*/
 				if ( queue_contention == 0 ) g_iterator--;
 
-				queue_insert(processing, t);
+				queue_insert(processing, c);
 
 			/* Otherwise, keep waiting until enough tasks arrive. */
-			} else queue_insert(ready, t);
+			} else queue_insert(ready, c);
 
+			// printf("G_iterator %d - Workload_curr %d - Core ID %d \n", g_iterator, workload_currtasks(w), core_getcid(c));
 			/*
 				We are basing ourselves in g_iterator to indicate the waiting time of tasks (Check processing strategies).
 				Since we can't prevent a core from trying to schedule (increasing the g_iterator), 
@@ -370,46 +306,28 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 			core_set_contention(c, -(queue_contention));
         }
 		// printf("2- Global iterator: %d\n", g_iterator);
+	
+		processer->process();
 
-		/* We must have, atleast, one task scheduled to be able to process. */
-		if ( controller != 0 )
+
+		while(!queue_empty(processing))
 		{
-			processer->process();
-			/* Scheduling ready threads to cores. */
-			while(!queue_empty(processing))
-			{
-				thread_tt t;					//
-				t = choose_thread(processing);  //
-				core_tt c;              		//  Here we can add the Thread scheduling strategy.
-				c = choose_core(cores); 		//
-				core_populate(c, t);    		//
->>>>>>> 7f1db94 (Removing thread structure from simulation)
+			queue_insert(ready, queue_remove(processing));
+		}
 
-			t = choose_thread(ready);
-			i += strategy->sched(running, t);
-			queue_insert(aux, t);
-		}
-		/* Processing threads. */
-		while(!queue_empty(aux)){
-			thread_tt t;
-
-			t = choose_thread(aux);
-			process_thread(t);
-		}
-		/* Reschedule running threads. */
-		while (!dqueue_empty(running))
-		{
-			queue_insert(ready, dqueue_remove(running));
-			if (dqueue_next_counter(running) != 0)
-				break;
-		}
+		// /* Reschedule running threads. */
+		// while (!queue_empty(running))
+		// {
+		// 	queue_insert(ready, queue_remove(running));
+		// 	// if (dqueue_next_counter(running) != 0)
+		// 	// 	break;
+		// }
 	}
-	queue_destroy(aux);
 
 	strategy->end();
+	processer->end();
 
-	simsched_dump(threads);
+	simsched_dump(cores, w);
 
 	threads_join();
 }
-

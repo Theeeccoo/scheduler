@@ -22,6 +22,8 @@
 #ifndef TASK_H_
 #define TASK_H_
 
+	#include "mylib/array.h"
+
 	/**
 	 * @brief Opaque pointer to a task.
 	 */
@@ -63,6 +65,12 @@
 	extern void task_set_workprocess(task_tt, int);
 	extern void task_set_workload(task_tt, int);
 
+	extern array_tt task_memacc(const_task_tt);
+	extern void task_create_memacc(task_tt);
+	extern void task_set_memacc(task_tt, array_tt);
+	extern void task_set_memptr(task_tt, int);
+	extern int  task_memptr(const_task_tt);
+	extern void* mem_create(int);
 
 	extern int task_gettsid(const_task_tt);
 >>>>>>> 9aff985 (Initial commit.)

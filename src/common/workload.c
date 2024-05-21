@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
-#include <stdio.h>
+#include <string.h>
 
 #include <mylib/util.h>
 
@@ -35,8 +35,10 @@
  */
 struct workload
 {
-	int ntasks; /**< Number of tasks. */
-	int *tasks; /**< Tasks.           */
+	int ntasks;              /**< Total number of tasks.                      */
+	queue_tt tasks;          /**< All initial tasks.                          */
+	queue_tt arrived_tasks;  /**< All tasks that are current being processed. */
+	queue_tt finished_tasks; /**< All tasks that have finished.               */
 };
 
 /**
@@ -71,11 +73,13 @@ static int workload_skewness(int i, int nclasses, int skewness)
 /**
  * @brief Creates a workload.
  *
- * @param h        Histogram of probability distribution.
- * @param skewness Skewness.
- * @param ntasks   Number of tasks.
+ * @param h           Histogram of probability distribution.
+ * @param a           Histogram of arrival probability distribution.
+ * @param skewness    Workload Skewness.
+ * @param arrskewness Arrival time Skewness.
+ * @param ntasks      Number of tasks.
  */
-struct workload *workload_create(histogram_tt h, int skewness, int ntasks)
+struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, int arrskewness,  int ntasks )
 {
 	int k;              /* Residual tasks. */
 	struct workload *w; /* Workload.       */
@@ -87,7 +91,9 @@ struct workload *workload_create(histogram_tt h, int skewness, int ntasks)
 	/* Create workload. */
 	w = smalloc(sizeof(struct workload));
 	w->ntasks = ntasks;
-	w->tasks = smalloc(ntasks*sizeof(int));
+	w->tasks = queue_create();
+	w->arrived_tasks = queue_create();
+	w->finished_tasks = queue_create();
 
 	/* Create workload. */
 	k = 0;
@@ -97,15 +103,10 @@ struct workload *workload_create(histogram_tt h, int skewness, int ntasks)
 
 		n = floor(histogram_class(h, i)*ntasks);
 
-<<<<<<< HEAD
-		for (int j = 0; j < n; j++)
-			w->tasks[k++] = workload_skewness(i, histogram_nclasses(h), skewness);
-=======
 		for (int j = 0; j < n; j++){
 			queue_insert(w->tasks, task_create(workload_skewness(i, histogram_nclasses(h), skewness), 0));
 			k++;
 		}
->>>>>>> 7f1db94 (Removing thread structure from simulation)
 	}
 
 	/* Check for overflow. */
@@ -119,8 +120,43 @@ struct workload *workload_create(histogram_tt h, int skewness, int ntasks)
 	for (int i = k; i < ntasks; i++)
 	{
 		int j = rand()%histogram_nclasses(h);
-		w->tasks[k++] = workload_skewness(j, histogram_nclasses(h), skewness);
+		queue_insert(w->tasks, task_create(workload_skewness(j, histogram_nclasses(h), skewness), 0));
+		k++;
 	}
+
+	/* ARRIVAL TIME. */
+
+	k = 0;
+	/* Creating arrival time. */
+	for ( int i = 0; i < histogram_nclasses(a); i++ )
+	{
+		int n = floor(histogram_class(a, i) * ntasks);
+
+		for ( int j = 0; j < n; j++ )
+		{
+			task_set_arrivaltime(queue_peek(w->tasks, k), workload_skewness(i, histogram_nclasses(a), arrskewness));
+			k++;
+		}
+	}
+
+	/* Check for overflow. */
+	if (k > ntasks)
+	{
+		fprintf(stderr, "ntasks=%d\n", k);
+		error("histogram overflow");
+	}
+
+	/* Fill up remainder tasks. */
+	for (int i = k; i < ntasks; i++)
+	{
+		int j = rand()%histogram_nclasses(a);
+		task_set_arrivaltime(queue_peek(w->tasks, k), workload_skewness(j, histogram_nclasses(a), arrskewness));
+		k++;
+	}
+
+	/* Generating Tasks' memory addresses. */
+	for ( int j = 0; j < ntasks; j ++)
+		task_create_memacc(queue_peek(workload_tasks(w), j));
 
 	return (w);
 }
@@ -134,15 +170,17 @@ void workload_destroy(struct workload *w)
 {
 	/* Sanity check. */
 	assert(w != NULL);
-
-	free(w->tasks);
+	
+	queue_destroy(w->tasks);
+	queue_destroy(w->arrived_tasks);
+	queue_destroy(w->finished_tasks);
 	free(w);
 }
 
 /**
  * @brief Sorts tasks in ascending order.
  *
- * @oaram w Target workload.
+ * @param w Target workload.
  */
 static void workload_ascending(struct workload *w)
 {
@@ -153,13 +191,15 @@ static void workload_ascending(struct workload *w)
 	{
 		for (int j = 0; j < w->ntasks; j++)
 		{
-			if (w->tasks[j] < w->tasks[i])
+			task_tt task_i = queue_peek(workload_tasks(w), i);
+			task_tt task_j = queue_peek(workload_tasks(w), j);
+			if (task_workload(task_j) < task_workload(task_i))
 			{
-				double tmp;
+				task_tt task_tmp = NULL;
 
-				tmp = w->tasks[j];
-				w->tasks[j] = w->tasks[i];
-				w->tasks[i] = tmp;
+				task_tmp = task_j;
+				queue_change_elem(w->tasks, j, task_i);
+				queue_change_elem(w->tasks, i, task_tmp);
 			}
 		}
 	}
@@ -168,7 +208,7 @@ static void workload_ascending(struct workload *w)
 /**
  * @brief Sorts tasks in descending order.
  *
- * @oaram w Target workload.
+ * @param w Target workload.
  */
 static void workload_descending(struct workload *w)
 {
@@ -179,13 +219,15 @@ static void workload_descending(struct workload *w)
 	{
 		for (int j = 0; j < w->ntasks; j++)
 		{
-			if (w->tasks[j] > w->tasks[i])
+			task_tt task_i = queue_peek(workload_tasks(w), i);
+			task_tt task_j = queue_peek(workload_tasks(w), j);
+			if (task_workload(task_j) > task_workload(task_i))
 			{
-				double tmp;
+				task_tt task_tmp = NULL;
 
-				tmp = w->tasks[j];
-				w->tasks[j] = w->tasks[i];
-				w->tasks[i] = tmp;
+				task_tmp = task_j;
+				queue_change_elem(w->tasks, j, task_i);
+				queue_change_elem(w->tasks, i, task_tmp);
 			}
 		}
 	}
@@ -194,7 +236,7 @@ static void workload_descending(struct workload *w)
 /**
  * @brief Shuffle tasks.
  *
- * @oaram w Target workload.
+ * @param w Target workload.
  */
 static void workload_shuffle(struct workload *w)
 {
@@ -204,14 +246,74 @@ static void workload_shuffle(struct workload *w)
 	/* Shuffle array. */
 	for (int i = 0; i < w->ntasks - 1; i++)
 	{
-		int j;      /* Shuffle index.  */
-		double tmp; /* Temporary data. */
+		int j;                   /* Shuffle index.  */
+		task_tt task_tmp = NULL; /* Temporary data. */
+
 
 		j = rand()%w->ntasks;
 
-		tmp = w->tasks[i];
-		w->tasks[i] = w->tasks[j];
-		w->tasks[j] = tmp;
+		task_tt task_i = queue_peek(workload_tasks(w), i);
+		task_tt task_j = queue_peek(workload_tasks(w), j);
+
+		task_tmp = task_i;
+		queue_change_elem(w->tasks, i, task_j);
+		queue_change_elem(w->tasks, j, task_tmp);
+	}
+}
+
+/**
+ * @brief Sorts tasks in ascending order based in tasks arrival time.
+ *
+ * @param w Target workload.
+ */
+static void workload_sort_arrival(struct workload *w)
+{
+	/* Sanity check. */
+	assert(w != NULL);
+
+	for (int i = 0; i < w->ntasks; i++)
+	{
+		for (int j = 0; j < w->ntasks; j++)
+		{
+			task_tt task_i = queue_peek(workload_tasks(w), i);
+			task_tt task_j = queue_peek(workload_tasks(w), j);
+			if (task_arrivaltime(task_j) > task_arrivaltime(task_i))
+			{
+				task_tt task_tmp = NULL;
+
+				task_tmp = task_j;
+				queue_change_elem(w->tasks, j, task_i);
+				queue_change_elem(w->tasks, i, task_tmp);
+			}
+		}
+	}
+}
+
+/**
+ * @brief Sorts tasks in ascending order based in tasks remaining workload.
+ *
+ * @param w Target workload.
+ */
+static void workload_sort_remainingwork(struct workload *w)
+{
+	/* Sanity check. */
+	assert(w != NULL);
+
+	for (int i = 0; i < queue_size(workload_arrtasks(w)); i++)
+	{
+		for (int j = 0; j < queue_size(workload_arrtasks(w)); j++)
+		{
+			task_tt task_i = queue_peek(workload_arrtasks(w), i);
+			task_tt task_j = queue_peek(workload_arrtasks(w), j);
+			if (task_work_left(task_j) > task_work_left(task_i))
+			{
+				task_tt task_tmp = NULL;
+
+				task_tmp = task_j;
+				queue_change_elem(w->arrived_tasks, j, task_i);
+				queue_change_elem(w->arrived_tasks, i, task_tmp);
+			}
+		}
 	}
 }
 
@@ -243,6 +345,16 @@ void workload_sort(struct workload *w, enum workload_sorting sorting)
 		case WORKLOAD_SHUFFLE:
 			workload_shuffle(w);
 			break;
+		
+		/* Sort based in workload arrival time. */
+		case WORKLOAD_ARRIVAL:
+			workload_sort_arrival(w);
+			break;
+		
+		/* Sort based in remaining workload. */
+		case WORKLOAD_REMAINING_WORK:
+			workload_sort_remainingwork(w);
+			break;
 
 		/* Should not happen. */
 		default:
@@ -273,18 +385,21 @@ int *workload_sortmap(struct workload *w)
 	{
 		for (int j = i + 1; j < w->ntasks; j++)
 		{
+			task_tt task_map_i = queue_peek(workload_tasks(w), map[i]);
+			task_tt task_map_j = queue_peek(workload_tasks(w), map[j]);
+
 			/* Swap. */
-			if (w->tasks[map[j]] < w->tasks[map[i]])
+			if (task_workload(task_map_j) < task_workload(task_map_i))
 			{
-				int tmp;
-				
-				tmp = map[j];
-				map[j] = map[i];
-				map[i] = tmp;
+				task_tt task_tmp = NULL;
+
+				task_tmp = task_map_j;
+				queue_change_elem(w->tasks, j, task_map_i);
+				queue_change_elem(w->tasks, i, task_tmp);
 			}
 		}
 	}
-	
+
 	return (map);
 } 
 
@@ -303,7 +418,18 @@ void workload_write(FILE *outfile, struct workload *w)
 	/* Write workload to file. */
 	fprintf(outfile, "%d\n", w->ntasks);
 	for (int i = 0; i < w->ntasks; i++)
-		fprintf(outfile, "%d\n", w->tasks[i]);
+	{
+		task_tt ts = queue_peek(workload_tasks(w), i);
+		array_tt memacc = task_memacc(ts);
+		fprintf(outfile, "%d %d ", task_workload(ts), task_arrivaltime(ts));
+		for ( int j = 0; j < task_workload(ts); j++ )
+		{
+			int *elem = array_get(memacc, j);
+			fprintf(outfile, "%d ", *elem);
+		}
+		fprintf(outfile, "\n");
+		free(memacc);
+	}
 }
 
 /**
@@ -324,24 +450,45 @@ struct workload *workload_read(FILE *infile)
 	assert(fscanf(infile, "%d\n", &ntasks) == 1);
 
 	w = smalloc(sizeof(struct workload));
-	w->tasks = smalloc(ntasks*sizeof(int));
+	w->tasks = queue_create();
+	w->arrived_tasks = queue_create();
+	w->finished_tasks = queue_create();
 	w->ntasks = ntasks;
 
 	/* Write workload to file. */
-	for (int i = 0; i < ntasks; i++)
-		assert(fscanf(infile, "%d\n", &w->tasks[i]) == 1);
+	int workload  = 0, 
+		arrivtime = 0,
+		addr      = 0;
+
+	for (int i = 0; i < ntasks; i++) {
+		assert(fscanf(infile, "%d", &workload) == 1);
+		assert(fscanf(infile, "%d\n", &arrivtime) == 1);
+		array_tt t_addr = array_create(workload);
+
+		for ( int j = 0; j < workload; j++ )
+		{
+			assert(fscanf(infile, "%d\n", &addr) == 1);
+			struct mem *m = mem_create(addr);
+			array_set(t_addr, j, m);
+
+		}
+		task_tt ts = task_create(workload, arrivtime);
+		task_set_memacc(ts, t_addr);
+
+		workload_set_task(w, ts);
+	}
 
 	return (w);
 }
 
 /**
- * @brief Returns the number of tasks in a workload.
+ * @brief Returns the total number of tasks in a workload.
  *
  * @param w Target workload.
  *
  * @returns The number of tasks in the target workload.
  */
-int workload_ntasks(struct workload *w)
+int workload_ntasks(const struct workload *w)
 {
 	/* Sanity check. */
 	assert(w != NULL);
@@ -350,10 +497,8 @@ int workload_ntasks(struct workload *w)
 }
 
 /**
- * @brief Returns ith task's workload in a workload.
+ * @brief Returns the queue of tasks of a given workload.
  *
-<<<<<<< HEAD
-=======
  * @param w Target workload.
  * 
  * @returns The queue of tasks of a given workload.
@@ -382,18 +527,18 @@ queue_tt workload_arrtasks(const struct workload *w)
 }
 
 /**
- * @brief Returns the queue of arrived tasks of a given workload.
+ * @brief Returns the queue of finished tasks of a given workload.
  *
  * @param w Target workload.
  * 
- * @returns The queue of arrived tasks of a given workload.
+ * @returns The queue of finished tasks of a given workload.
  */
-queue_tt workload_arrtasks(const struct workload *w)
+queue_tt workload_fintasks(const struct workload *w)
 {
 	/* Sanity check. */
 	assert(w != NULL);
 
-	return(w->arrived_tasks);
+	return(w->finished_tasks);
 }
 
 /**
@@ -427,39 +572,69 @@ void workload_set_arrtask(struct workload *w, struct task *t)
 }
 
 /**
- * @brief Checks if there are tasks that have arrived at g_i moment. 
- *        If positive, add them into arrived_tasks queue.
- * 
->>>>>>> 7f1db94 (Removing thread structure from simulation)
- * @param w   Target workload.
- * @param idx Index of target task.
+ * @brief Adds new task into finished tasks array.
  *
- * @returns The ith task's workload in the target workload.
+ * @param w    Target workload.
+ * @param task New task.
  */
-int workload_task(struct workload *w, int idx)
+void workload_set_fintask(struct workload *w, struct task *t)
 {
 	/* Sanity check. */
 	assert(w != NULL);
-	assert((idx >= 0) && (idx < w->ntasks));
+	assert(t != NULL);
 
-	return (w->tasks[idx]);
+	queue_insert(w->finished_tasks, t);
 }
 
 /**
- * @brief Adjusts the load of the ith task in a workload.
- *
- * @param w    Target workload.
- * @param idx  Index of target task.
- * @param load New load.
- */
-void workload_set_task(struct workload *w, int idx, int load)
+ * @brief Checks if there are tasks that have arrived at g_i moment. 
+ *        If positive, add them into arrived_tasks queue.
+ * 
+ * @param w   Target workload.
+ * @param g_i Global iterator.
+*/ 
+void workload_checktasks(struct workload *w, int g_i)
 {
 	/* Sanity check. */
 	assert(w != NULL);
-	assert((idx >= 0) && (idx < w->ntasks));
-	assert(load > 0);
 
-	w->tasks[idx] = load;
+	for ( int i = 0; i < queue_size(w->tasks); i++ )
+	{
+		task_tt curr_task = queue_peek(w->tasks, i);
+		/* Tasks are sorted in arrival time, so if one haven't arrived, all after it haven't also. */
+		if ( task_arrivaltime(curr_task) <= g_i ) workload_set_arrtask(w, queue_remove(w->tasks));
+		else break;
+	}
+}
+
+/**
+ * @brief Returns the current total number of tasks left in our simulation.
+ * 
+ * @param w Target workload.
+ * 
+ * @returns Current total number of tasks left in our simulation.
+*/
+int workload_totaltasks(const struct workload *w)
+{
+	/* Sanity check. */
+	assert(w != NULL);
+
+	return (queue_size(w->tasks) + queue_size(w->arrived_tasks));	
+}
+
+/**
+ * @brief Returns the number of tasks tha are currently (based on arrival time) in workload.
+ *
+ * @param w Target workload.
+ *
+ * @returns Number of tasks at workload at given time.
+ */
+int workload_currtasks(const struct workload *w)
+{
+	/* Sanity check. */
+	assert(w != NULL);
+
+	return (queue_size(w->arrived_tasks));
 }
 
 /**
@@ -485,8 +660,7 @@ int *workload_cummulative_sum(struct workload *w)
 	/* Compute cummulative sum. */
 	sum[0] = 0;
 	for (int i = 1; i <= ntasks; i++)
-		sum[i] = sum[i - 1] + w->tasks[i - 1];
-
+		sum[i] = sum[i - 1] + task_work_left(queue_peek(workload_tasks(w), i - 1));
 	return (sum);
 
 }

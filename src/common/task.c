@@ -23,30 +23,62 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #include <task.h>
 #include <mylib/util.h>
+
+
+
+/*============================================================================*
+ * MEMORY                                                                     *
+ *============================================================================*/
+
+struct mem
+{
+	int memaddr;  /**< Memory address. */
+};
+
+/**
+ * @brief Instantiate a new memory address.
+ * 
+ * @param addr Target address.
+*/
+void* mem_create(int addr)
+{
+	struct mem *mem;
+
+	assert(addr >= 0);
+
+	mem = smalloc(sizeof(struct mem));
+
+	mem->memaddr = addr;
+	return (mem);
+}
+
+
+
+
+/*============================================================================*
+ * TASK                                                                       *
+ *============================================================================*/
 
 /**
  * @brief Task.
  */
 struct task
 {
-<<<<<<< HEAD
-	int tsid;                /**< Task identification number.           */
-	int work;                /**< Workload of a task.                   */
-	int waiting_time;        /**< Waiting time for completion of a task */
-=======
-	int tsid;           /**< Task identification number.                          */
-	int arrival_time;   /**< Which iteration current task arrived.                */
-	int waiting_time;   /**< Waiting time for completion of a task.               */
-	int work;           /**< Total workload of a task.                            */
-	int work_processed; /**< Total workload processed.                            */ 
+	int tsid;           /**< Task identification number.             */
+	int arrival_time;   /**< Which iteration current task arrived.   */
+	int waiting_time;   /**< Waiting time for completion of a task.  */
+	int work;           /**< Total workload of a task.               */
+	int work_processed; /**< Total workload processed.               */ 
 
+	array_tt memacc;    /**< Tasks memory accesses.                  */
+	int memptr;         /**< Points to the last memory accessed.     */
 
-	int e_moment;       /**< Moment when task (re)entered in a core.              */
-	int l_moment;       /**< Moment when task left from a core.                   */
->>>>>>> 7f1db94 (Removing thread structure from simulation)
+	int e_moment;       /**< Moment when task (re)entered in a core. */
+	int l_moment;       /**< Moment when task left from a core.      */
 };
 
 /**
@@ -57,11 +89,12 @@ static int next_tsid = 0;
 /**
  * @brief Creates a task.
  *
- * @param capacity Workload of a task.
+ * @param work    Workload of a task.
+ * @param arrival Arrival moment of a task.
  *
  * @returns A task.
  */
-struct task *task_create(int work)
+struct task *task_create(int work, int arrival)
 {
 	struct task *task;
 
@@ -71,28 +104,27 @@ struct task *task_create(int work)
 	task = smalloc(sizeof(struct task));
 
 	task->tsid = next_tsid++;
-<<<<<<< HEAD
-=======
 	task->arrival_time = arrival;
 	task->waiting_time = 0;
->>>>>>> 7f1db94 (Removing thread structure from simulation)
 	task->work = work;
-	task->waiting_time = 0;
+	task->work_processed = 0;
+	task->e_moment = 0;
+	task->l_moment = 0;
+
+	task->memacc = array_create(work);
+	task->memptr = 0;
 
 	return (task);
 }
 
 /**
- * @brief Returns the workload of given task
+ * @brief Sets the arrival time of given task.
  * 
- * @param ts Target task
- * 
- * @returns Workload of specified task
+ * @param ts   Target task.
+ * @param time Arrival time.
  */
-int task_get_workload(struct task *ts)
+void task_set_arrivaltime(struct task *ts, int time)
 {
-<<<<<<< HEAD
-=======
 	/* Sanity check. */
     assert(ts != NULL);
 	assert(time >= 0);
@@ -193,6 +225,55 @@ void task_set_lmoment(struct task *ts, int moment)
 }
 
 /**
+ * @brief Creates task's memory address that will be accessed.
+ * 
+ * @param ts Target task. 
+*/
+void task_create_memacc(struct task *ts)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+
+	/* Storing randomly-generated task's memory acesses. Will contain task_workload random "memory addresses" */
+	for ( int i = 0; i < ts->work; i++ )
+	{
+		struct mem *m = mem_create((rand() % ts->work)); /* Generating the memory accesses. Possible addresses: [0 - task_workload) */
+		array_set(ts->memacc, i, m);
+	}
+}
+
+/**
+ * @brief Sets task's memory address that will be accessed.
+ * 
+ * @param ts Target task. 
+ * @param a  Array of memory addresses.
+*/
+void task_set_memacc(struct task *ts, array_tt a)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	assert(a != NULL);
+
+	ts->memacc = a;
+}
+
+/**
+ * @brief Sets task's memory pointer.
+ * 
+ * @param t   Target task.
+ * @param pos Position of last memory address accessed.
+*/
+void task_set_memptr(struct task *ts, int pos)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	assert(pos >= 0);
+	assert(pos < task_workload(ts));
+
+	ts->memptr = pos;
+}
+
+/**
  * @brief Gets the last moment that a task left in a core. 
  * 
  * @param ts Target task.
@@ -233,56 +314,95 @@ int task_waiting_time(const struct task *ts)
 int task_workload(const struct task *ts)
 {
 	/* Sanity check. */
->>>>>>> 7f1db94 (Removing thread structure from simulation)
     assert(ts != NULL);
 
     return(ts->work);
 }
 
-/**
- * @brief Sets the workload of given task
- * 
- * @param ts       Target task
- * @param workload Workload
- */
-void task_set_workload(struct task *ts, int workload)
-{
-    /* Sanity check. */
-    assert(ts != NULL);
-	assert(workload >= 0);
 
-    ts->work = workload;
+/**
+ * @brief Assigns a new workload to given task.
+ * 
+ * @param ts Target task.
+ */
+void task_set_workload(struct task *t, int w)
+{
+	/* Sanity check. */
+    assert(t != NULL);
+	assert(w >= 0);
+
+	t->work = w;
 }
 
+
 /**
- * @brief Sets the waiting time of given task
+ * @brief Returns the total processed workload of given task.
  * 
- * @param ts    Target task
- * @param wtime Waiting time
+ * @param ts Target task.
+ * 
+ * @returns Total processed workload of specified task.
  */
-void task_set_waiting_time(struct task *ts, int wtime)
+int task_work_processed(const struct task *ts)
 {
 	/* Sanity check. */
     assert(ts != NULL);
-	assert(wtime >= 0);
-    ts->waiting_time = wtime;
+
+    return(ts->work_processed);
 }
 
 /**
- * @brief Returns the waiting time of given task
+ * @brief Returns how much work is left to be processed on given task.
  * 
- * @param ts Target task
+ * @param ts Target task.
  * 
- * @returns Waiting time of specified task
+ * @returns How much work is left to be processed on specified task.
  */
-int task_get_waiting_time(struct task *ts)
+int task_work_left(const struct task *ts)
 {
+	/* Sanity check. */
     assert(ts != NULL);
 
-    return(ts->waiting_time);
+    return(ts->work - ts->work_processed);
 }
 
-int task_gettsid(struct task *ts)
+/**
+ * @brief Returns task's memory addresses.
+ * 
+ * @param ts Target task. 
+ * 
+ * @return Task's memory addresses.
+*/
+array_tt task_memacc(const struct task *ts)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+
+	return (ts->memacc);
+}
+
+/**
+ * @brief Returns task's memory pointer.
+ * 
+ * @param Target task.
+ * 
+ * @returns Task's memory pointer.
+*/
+int task_memptr(const struct task *ts)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+
+	return (ts->memptr);
+}
+
+/**
+ * @brief Gets the ID of a task.
+ *
+ * @param ts Target task.
+ *
+ * @returns The ID of the target task.
+ */
+int task_gettsid(const struct task *ts)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
@@ -300,5 +420,6 @@ void task_destroy(struct task *ts)
 	/* Sanity check. */
 	assert(ts != NULL);
 
+	array_destroy(ts->memacc);
 	free(ts);
 }
