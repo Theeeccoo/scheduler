@@ -24,47 +24,24 @@
 #include <stdbool.h>
 
 #include <mylib/util.h>
-#include <mylib/dqueue.h>
 #include <mylib/queue.h>
 
 #include <scheduler.h>
 
 /**
- * @brief Fcfs scheduler data.
+ * @brief FCFS scheduler data.
  */
 static struct
 {
-<<<<<<< HEAD:src/simsched/static.c
-	workload_tt workload; /**< Workload.   */
-	array_tt threads;           /**< Threads.    */
-	thread_tt *taskmap;         /**< Scheduling. */
-	int chunksize;              /**< Chunksize.  */
-} scheddata = { NULL, NULL, NULL, 1 };
-=======
 	workload_tt workload; /**< Workload.                     */
 	int batchsize;        /**< Batchsize.                    */
     int initialized;      /**< Strategy already initialized? */
 } scheddata = { NULL, 1, 0 };
->>>>>>> 7f1db94 (Removing thread structure from simulation):src/simsched/fcfs.c
 
 /**
- * @brief Initializes the fcfs scheduler.
+ * @brief Initializes the FCFS scheduler.
  * 
  * @param workload  Target workload.
-<<<<<<< HEAD:src/simsched/static.c
- * @param threads   Target threads.
- * @param chunksize Chunk size.
- */
-void scheduler_static_init(workload_tt workload, array_tt threads, int chunksize)
-{
-	int tidx;      /* Index of working thread. */
-	int ntasks;    /* Workload size.           */
-	
-	/* Sanity check. */
-	assert(workload != NULL);
-	assert(threads != NULL);
-	assert(chunksize > 0);
-=======
  * @param batchsize Batch size.
  */
 void scheduler_fcfs_init(workload_tt workload, int batchsize)
@@ -72,79 +49,43 @@ void scheduler_fcfs_init(workload_tt workload, int batchsize)
 	/* Sanity check. */
 	assert(workload != NULL);
 	assert(batchsize > 0);
->>>>>>> 7f1db94 (Removing thread structure from simulation):src/simsched/fcfs.c
 
 	/* Already initialized. */
-	if (scheddata.taskmap != NULL)
+	if (scheddata.initialized)
 		return;
-	
-	ntasks = workload_ntasks(workload);
 
 	/* Initialize scheduler data. */
 	scheddata.workload = workload;
-<<<<<<< HEAD:src/simsched/static.c
-	scheddata.threads = threads;
-	scheddata.taskmap = smalloc(ntasks*sizeof(thread_tt));
-		
-	/* Assign tasks to threads. */
-	tidx = 0;
-	for (int i = 0; i < ntasks; i += chunksize)
-	{
-		for (int j = 0; j < chunksize; j++)
-		{
-			if (i + j >= ntasks)
-				break;
-
-			scheddata.taskmap[i + j] = array_get(threads, tidx);
-		}
-
-		nchunks++;
-		tidx = (tidx + 1)%array_size(threads);
-	}
-=======
     scheddata.batchsize = batchsize;
     scheddata.initialized = 1;
->>>>>>> 7f1db94 (Removing thread structure from simulation):src/simsched/fcfs.c
 }
 
 /**
- * @brief Finalizes the fcfs scheduler.
+ * @brief Finalizes the FCFS scheduler.
  */
 void scheduler_fcfs_end(void)
 {
-	free(scheddata.taskmap);
-	scheddata.taskmap = NULL;
+	scheddata.initialized = 0;
 }
 
 /**
- * @brief Fcfs scheduler.
+ * @brief FCFS scheduler.
  * 
  * @param running Target queue of running cores.
  * @param c       Target core.
  * 
- * @returns Number scheduled tasks,
+ * @returns Number of scheduled tasks,
  */
-<<<<<<< HEAD:src/simsched/static.c
-int scheduler_static_sched(dqueue_tt running, thread_tt t)
-=======
 int scheduler_fcfs_sched(core_tt c)
->>>>>>> 7f1db94 (Removing thread structure from simulation):src/simsched/fcfs.c
 {
-	int n = 0;     /* Number of tasks scheduled. */
-	int wsize = 0; /* Size of assigned work.     */
+	int n = 0;       /* Number of tasks scheduled.      */
+	int wsize = 0;   /* Size of assigned work.          */
+	int wk_size = workload_totaltasks(scheddata.workload); /* Total number of left tasks in workload. */
+	int cr_size = workload_currtasks(scheddata.workload);  /* Current number of tasks that have 'arrived'. */
 
-	/* Get next tasks. */
-	for (int i = 0; i < workload_ntasks(scheddata.workload); i++)
+	/* We should schedule when there are, atleast, batchsize tasks free OR whenever the total left has arrived. */
+	if ( cr_size >= scheddata.batchsize || wk_size == cr_size )
 	{
-<<<<<<< HEAD:src/simsched/static.c
-		/* Skip tasks from other threads. */
-		if (scheddata.taskmap[i] != t)
-			continue;
-
-		n++;
-		wsize += workload_task(scheddata.workload, i);
-		thread_assign(t, workload_task(scheddata.workload, i));
-=======
 		/* Either we schedule what is left, or we schedule batchsize tasks. */
 		int max = (cr_size > scheddata.batchsize) ? scheddata.batchsize : cr_size;
 		/* Get Tasks. */
@@ -155,17 +96,17 @@ int scheduler_fcfs_sched(core_tt c)
 			wsize += task_work_left(curr_task);
 			n++;
 		}
-		nchunks++;
->>>>>>> 7f1db94 (Removing thread structure from simulation):src/simsched/fcfs.c
 	}
 	
-	dqueue_insert(running, t, wsize);
+	/* If any task was scheduled, global 'time' must increase based on number of scheduled tasks. */
+    g_iterator += ( n > 0 ) ? n : 1;
+	
 
 	return (n);
 }
 
 /**
- * @brief Fcfs scheduler.
+ * @brief FCFS scheduler.
  */
 static struct scheduler _sched_fcfs = {
 	false,

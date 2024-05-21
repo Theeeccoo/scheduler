@@ -1,13 +1,15 @@
-bin/*
-doc/*
-lib/*
-*.swp
-*.log
+# Object files
 *.o
+
+# Libraries
+*.lib
+*.a
+*.la
 *.lo
-contrib/bin
-contrib/include
-contrib/lib
-contrib/share
+
+# Executables
+*.exe
 *.out
-tags
+
+bin/*
+.vscode

@@ -25,10 +25,10 @@
     */
     /**@{*/
     extern const struct scheduler *sched_fcfs;
+    extern const struct scheduler *sched_srtf;
     /**@}*/
 
     /* Forward definitions. */
-    extern int nchunks;
     extern int g_iterator;
 
     extern void simsched(workload_tt, array_tt, const struct scheduler*, const struct processer*, int);
