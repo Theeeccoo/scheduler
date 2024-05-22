@@ -8,6 +8,13 @@
     #include "core.h"
 
     /**
+	 * @brief Scheduler penalties.
+	 */
+	/**@{*/
+	#define MISS_PENALTY  3 /**< Cache miss penalty (cycles).  */
+	/**@}*/
+
+    /**
      * @brief Task process strategy.
     */
     struct processer
@@ -27,6 +34,4 @@
     extern const struct processer *rr_preemptive;
     /**@}*/
 
-    /* Forward definitions. */
-    // void process_tasks(core_tt, int*);
 #endif /* PROCESS_H_ */

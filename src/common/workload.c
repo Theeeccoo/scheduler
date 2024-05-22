@@ -27,6 +27,7 @@
 
 #include <mylib/util.h>
 
+#include <mem.h>
 #include <statistics.h>
 #include <workload.h>
 

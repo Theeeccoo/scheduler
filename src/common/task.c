@@ -27,41 +27,7 @@
 
 #include <task.h>
 #include <mylib/util.h>
-
-
-
-/*============================================================================*
- * MEMORY                                                                     *
- *============================================================================*/
-
-struct mem
-{
-	int memaddr;  /**< Memory address. */
-};
-
-/**
- * @brief Instantiate a new memory address.
- * 
- * @param addr Target address.
-*/
-void* mem_create(int addr)
-{
-	struct mem *mem;
-
-	assert(addr >= 0);
-
-	mem = smalloc(sizeof(struct mem));
-
-	mem->memaddr = addr;
-	return (mem);
-}
-
-
-
-
-/*============================================================================*
- * TASK                                                                       *
- *============================================================================*/
+#include <mem.h>
 
 /**
  * @brief Task.
@@ -268,7 +234,7 @@ void task_set_memptr(struct task *ts, int pos)
 	/* Sanity check. */
 	assert(ts != NULL);
 	assert(pos >= 0);
-	assert(pos < task_workload(ts));
+	assert(pos <= task_workload(ts));
 
 	ts->memptr = pos;
 }

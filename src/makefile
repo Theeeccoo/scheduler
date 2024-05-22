@@ -27,6 +27,7 @@ workloadgen:                \
 		common/workload.o   \
 		common/statistics.o \
 		common/task.o       \
+		common/mem.o		\
 		workloadgen/main.o       
 	mkdir -p $(BINDIR)
 	$(LD) $(CFLAGS) $^ -o $(BINDIR)/workloadgen $(LIBS)
@@ -51,6 +52,7 @@ simsched:                         \
 		common/workload.o         \
 		common/statistics.o       \
 		common/task.o             \
+		common/mem.o			  \
 		simsched/simsched.o       \
 		simsched/core.o           \
 		simsched/fcfs.o           \
