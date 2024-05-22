@@ -70,7 +70,6 @@
 	extern void task_set_memacc(task_tt, array_tt);
 	extern void task_set_memptr(task_tt, int);
 	extern int  task_memptr(const_task_tt);
-	extern void* mem_create(int);
 
 	extern int task_gettsid(const_task_tt);
 >>>>>>> 9aff985 (Initial commit.)

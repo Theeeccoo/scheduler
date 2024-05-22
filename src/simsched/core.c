@@ -16,6 +16,8 @@ struct core
 	int capacity;      /**< Processing capacity.                              */
     int contention;    /**< Core contention value.                            */
     queue_tt pr_tasks; /**< Tasks that are currently being processed on Core. */
+
+    array_tt cache;    /**< Core's cache.                                     */
 };
 
 /**
@@ -26,11 +28,12 @@ static int next_cid = 0;
 /**
  * @brief Creates a core.
  * 
- * @param capacity Processing capacity.
+ * @param capacity   Processing capacity.
+ * @param cache_size Cache size.
  * 
  * @returns A Core.
 */
-struct core *core_create(int capacity)
+struct core *core_create(int capacity, int cache_size)
 {
     struct core *c;
 
@@ -41,6 +44,11 @@ struct core *core_create(int capacity)
     c->contention = 0;
     c->pr_tasks = queue_create();
 
+    c->cache = array_create(cache_size);   
+    /* Initializing cache. */
+    for ( int i = 0; i < cache_size; i++ )
+        array_set(c->cache, i, mem_create(-1));
+    
     return (c);
 }
 
@@ -156,6 +164,57 @@ int core_getcid(const struct core *c)
 	return (c->cid);
 }
 
+/**
+ * @brief Gets the cache of a core.
+ *
+ * @param ts Target core.
+ *
+ * @returns The cache of the target core.
+ */
+array_tt core_cache(const struct core *c)
+{
+    /* Sanity check. */
+	assert(c != NULL);
+
+	return (c->cache);
+}
+
+
+/**
+ * @brief Checks if a specified address is already in core's cache.
+ * 
+ * @param c    Target core.
+ * @param addr Specified addr.
+ * 
+ * @return True if hit. False if miss.
+*/
+bool core_cache_checkaddr(const struct core *c, struct mem *addr)
+{   
+    /* Sanity check. */
+	assert(c != NULL);
+    assert(addr != NULL);
+
+    int cache_way = mem_addr(addr) % array_size(c->cache);
+    struct mem* c_addr = array_get(c->cache, cache_way);
+    return (mem_addr(c_addr) == mem_addr(addr));
+}   
+
+/**
+ * @brief Replaces a cache way with a new address.
+ * 
+ * @param c    Target core.
+ * @param addr New address.
+*/
+void core_cache_replace(struct core *c, struct mem *addr)
+{
+    /* Sanity check. */
+	assert(c != NULL);
+    assert(addr != NULL);
+
+    int cache_way = mem_addr(addr) % array_size(c->cache);
+    array_set(c->cache, cache_way, addr);
+}
+
 
 /**
  * @brief Destroys a core.
@@ -167,6 +226,7 @@ void core_destroy(struct core *c)
 	/* Sanity check. */
 	assert(c != NULL);
 
+    array_destroy(c->cache);
     queue_destroy(c->pr_tasks);
 	free(c);
 }
