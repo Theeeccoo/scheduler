@@ -33,7 +33,7 @@ static queue_tt processing;
  */
 static queue_tt running;
 
-void sort_ascending(int *a, int nelements, int *m, int *h, int *mi, float *sl)
+void sort_ascending(int *a, int nelements, int *m, int *h, int *mi, float *sl, int *ids)
 {
 	/* Sanity check. */
 	assert(a != NULL);
@@ -72,6 +72,10 @@ void sort_ascending(int *a, int nelements, int *m, int *h, int *mi, float *sl)
 				tmpf = sl[i];
 				sl[i] = sl[j];
 				sl[j] = tmpf;
+
+				tmp = ids[i];
+				ids[i] = ids[j];
+				ids[j] = tmp;
 			}
 		}
 	}
@@ -128,18 +132,20 @@ static void simsched_dump(array_tt cores, workload_tt w)
 	stddev = sqrt(stddev/(ncores));
 
 	/** Calculating 99th percentile */
-	int *map           = smalloc(sizeof(int) * ntasks), // 
+	int *ids           = smalloc(sizeof(int) * ntasks),               //
+		*map           = smalloc(sizeof(int) * ntasks), // 
 		*waiting_times = smalloc(sizeof(int) * ntasks), // Used only for debug purposes            
 		*task_hits     = smalloc(sizeof(int) * ntasks), //
 		*task_misses   = smalloc(sizeof(int) * ntasks), //
-		 percentile = 0,
-		 k          = 0;
+		 percentile    = 0,
+		 k             = 0;
 	float *task_slowdown = smalloc(sizeof(float) * ntasks);
 
 	double percentile_index = 0.0f;
 	for ( k = 0; k < ntasks; k++ )
 	{
 		task_tt curr_task = queue_peek(workload_fintasks(w), k);
+		ids[k] = task_realid(curr_task);
 		map[k] = task_gettsid(curr_task);
 		waiting_times[k] = task_waiting_time(curr_task);
 		task_hits[k] = task_hit(curr_task);
@@ -147,12 +153,12 @@ static void simsched_dump(array_tt cores, workload_tt w)
 		task_slowdown[k] = (((float) task_waiting_time(curr_task) + (float) task_workload(curr_task)) / ((float) task_workload(curr_task)));
 	}
 
-	sort_ascending(waiting_times, ntasks, map, task_hits, task_misses, task_slowdown);
+	sort_ascending(waiting_times, ntasks, map, task_hits, task_misses, task_slowdown, ids);
 
 	// Mapping Task id with its corresponding accumulative waiting_time, cache hits and cache misses.
 	for ( int i = 0; i < k; i++)
 	{
-		printf("%d %d %d %d %lf\n", map[i], waiting_times[i], task_hits[i], task_misses[i], task_slowdown[i]);
+		printf("%d %d %d %d %d %lf\n", ids[i], map[i], waiting_times[i], task_hits[i], task_misses[i], task_slowdown[i]);
 	}
 	percentile_index = (0.99 * ntasks) - 1;
 		
@@ -175,6 +181,7 @@ static void simsched_dump(array_tt cores, workload_tt w)
 	printf("cov: %lf\n", stddev/mean);
 	printf("slowdown: %lf\n", max/((double) min));
 
+	free(ids);
 	free(map);
 	free(waiting_times);
 	free(task_hits);

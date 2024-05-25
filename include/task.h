@@ -38,17 +38,10 @@
 	 * @name Operations on Task
 	 */
 	/**@{*/
-<<<<<<< HEAD
-	extern task_tt task_create(int);
+	extern task_tt task_create(int, int, int);
 	extern void task_destroy(task_tt);
-	extern void task_set_workload(task_tt, int);
-	extern int task_get_workload(task_tt);
-	extern void task_set_waiting_time(task_tt, int);
-	extern int task_get_waiting_time(task_tt);
-	extern int task_gettsid(task_tt);
-=======
-	extern task_tt task_create(int, int);
-	extern void task_destroy(task_tt);
+	extern void task_set_realid(task_tt, int);
+	extern int  task_realid(const_task_tt);
 
 	extern int task_arrivaltime(const_task_tt);
 	extern int task_waiting_time(const_task_tt);
@@ -80,7 +73,6 @@
 	extern int task_core_assigned(const_task_tt);
 
 	extern int task_gettsid(const_task_tt);
->>>>>>> 9aff985 (Initial commit.)
 	/**@}*/
 
 #endif /* TASK_H_ */

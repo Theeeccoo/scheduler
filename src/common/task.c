@@ -35,6 +35,7 @@
 struct task
 {
 	int tsid;           /**< Task identification number.             */
+	int real_id;        /**< Real id assigned when workload created. */
 	int arrival_time;   /**< Which iteration current task arrived.   */
 	int waiting_time;   /**< Waiting time for completion of a task.  */
 	int work;           /**< Total workload of a task.               */
@@ -60,12 +61,13 @@ static int next_tsid = 0;
 /**
  * @brief Creates a task.
  *
+ * @param real_id Initial ID assigned when workload created.
  * @param work    Workload of a task.
  * @param arrival Arrival moment of a task.
  *
  * @returns A task.
  */
-struct task *task_create(int work, int arrival)
+struct task *task_create(int real_id, int work, int arrival)
 {
 	struct task *task;
 
@@ -74,6 +76,7 @@ struct task *task_create(int work, int arrival)
 
 	task = smalloc(sizeof(struct task));
 
+	task->real_id = real_id;
 	task->tsid = next_tsid++;
 	task->arrival_time = arrival;
 	task->waiting_time = 0;
@@ -89,6 +92,34 @@ struct task *task_create(int work, int arrival)
 	task->memptr = 0;
 
 	return (task);
+}
+
+/**
+ * @brief Sets the id assigned when workload created.
+ * 
+ * @param ts      Target task.
+ * @param real_id Real id.
+ */
+void task_set_realid(struct task *ts, int real_id)
+{
+	/* Sanity check. */
+    assert(ts != NULL);
+	assert(real_id >= 0);
+
+	ts->real_id = real_id;
+}
+
+/**
+ * @brief Sets the arrival time of given task.
+ * 
+ * @param ts   Target task.
+ * @param time Arrival time.
+ */
+int  task_realid(const struct task *ts)
+{
+	/* Sanity check. */
+    assert(ts != NULL);
+	return (ts->real_id);
 }
 
 /**
