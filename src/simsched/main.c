@@ -115,14 +115,9 @@ static void usage(void)
 	printf("  --seed <number>         Seed value.\n");
 	printf("  --help                  Display this message.\n");
 	printf("Schedulers:\n");
-	// printf("  guided   Guided Scheduling\n");
-	// printf("  dynamic  Dynamic Scheduling\n");
-	// printf("  hss      History-Aware Scheduling\n");
-	// printf("  kass     Knowledge-Based Scheduling\n");
-	// printf("  binlpt   Bin Packing LPT Scheduling\n");
-	// printf("  srr      Smart Round-Robin Scheduling\n");
 	printf("  fcfs   First-Come, First-Served Scheduling.\n");
 	printf("  srtf   Shortest Remaining Time First.\n");
+	printf("  sca    Same Core Always.\n");
 
 
 	exit(EXIT_SUCCESS);
@@ -180,11 +175,13 @@ static array_tt get_cores(const char *filename, int ncores)
 
 	for (int i = 0; i < ncores; i++)
 	{
-        core_tt c;    /** Core. */
-        int capacity; /** Core's processing capacity. */
+        core_tt c;      /** Core. */
+        int capacity;   /** Core's processing capacity. */
+		int cache_size; /** Cache size. */
 		
 		assert(fscanf(file, "%d", &capacity) == 1);
-		c = core_create(capacity);
+		assert(fscanf(file, "%d\n", &cache_size) == 1);
+		c = core_create(capacity, cache_size);
 		array_set(cores, i, c);
 	}
 
@@ -281,24 +278,12 @@ static void readargs(int argc, const char **argv)
 			usage();
 		else
 		{
-			// if (!strcmp(argv[i], "guided"))
-			// 	args.scheduler = sched_guided;
-			// else if (!strcmp(argv[i], "dynamic"))
-			// 	args.scheduler = sched_dynamic;
-			// else if (!strcmp(argv[i], "hss"))
-			// 	args.scheduler = sched_hss;
-			// else if (!strcmp(argv[i], "kass"))
-			// 	args.scheduler = sched_kass;
-			// else if (!strcmp(argv[i], "binlpt"))
-			// 	args.scheduler = sched_binlpt;
-			// else if (!strcmp(argv[i], "srr"))
-			// 	args.scheduler = sched_srr;
-			// else if (!strcmp(argv[i], "static"))
-
             if (!strcmp(argv[i], "fcfs"))
                 args.scheduler = sched_fcfs;
 			else if (!strcmp(argv[i], "srtf"))
 				args.scheduler = sched_srtf;
+			else if (!strcmp(argv[i], "sca"))
+				args.scheduler = sched_sca;
 			else
 				error("unsupported scheduling strategy");
 

@@ -103,10 +103,6 @@ void processer_non_preemptive_process(void)
                     - Tasks' 'idle' time: The current time (e_moment) - the last moment that task was processed (l_moment).
                 */
                 int waiting_time = e_moment - l_moment;
-                // task_set_waiting_time(ts, task_waiting_time(ts) + waiting_time);
-
-                /* Saving the moment that task started to be processed. This value is adjusted with task arrival time */
-                // task_set_waiting_time(ts, task_waiting_time(ts) + waiting_time);
 
                 int amount_processed = 0,
                     amount_to_process = task_work_left(ts);
@@ -123,17 +119,30 @@ void processer_non_preemptive_process(void)
                     {
                         struct mem* m = array_get(task_memacc(ts), position);
                         bool hit = core_cache_checkaddr(c, m);
-                        printf("Addr %d - Hit %d - tid %d - wait_calc %d - global_c %d - aux %d\n", mem_addr(m), hit, task_gettsid(ts), waiting_time, *processdata.g_iterator, aux[c_pos]);
+                        // printf("Addr %d - Hit %d - workload %d - wait_calc %d - global_c %d - aux %d\n", mem_addr(m), hit, task_workload(ts), waiting_time, *processdata.g_iterator, aux[c_pos]);
+
+                        if ( hit )
+                        {
+                            task_set_hit(ts, task_hit(ts) + 1);
+                            core_set_hit(c, core_hit(c) + 1);
+                        }
+                        else
+                        {
+                            task_set_miss(ts, task_miss(ts) + 1);
+                            core_set_miss(c, core_miss(c) + 1);
+                        }
+
                         /* If miss, we must add a penalty. */
                         miss_waited += (hit) ? 0 : MISS_PENALTY;
                         core_cache_replace(c, m);
                     }
                 } else
-                    for ( /* noop */; amount_processed < amount_to_process; amount_processed++ )
+                    for ( /* noop */; amount_processed < amount_to_process; amount_processed++ );
 
                 
                 task_set_memptr(ts, position);
 
+                /* Saving the moment that task started to be processed. This value is adjusted with task arrival time */
                 task_set_waiting_time(ts, task_waiting_time(ts) + waiting_time + miss_waited);
 
                 task_set_workprocess(ts, task_work_processed(ts) + amount_processed);

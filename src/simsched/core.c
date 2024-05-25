@@ -17,6 +17,9 @@ struct core
     int contention;    /**< Core contention value.                            */
     queue_tt pr_tasks; /**< Tasks that are currently being processed on Core. */
 
+    int total_hits;    /**< Total cache hits while processing.                */
+    int total_misses;  /**< Total cache misses while processing.              */
+
     array_tt cache;    /**< Core's cache.                                     */
 };
 
@@ -43,6 +46,8 @@ struct core *core_create(int capacity, int cache_size)
     c->capacity = capacity;
     c->contention = 0;
     c->pr_tasks = queue_create();
+    c->total_hits = 0;
+    c->total_misses = 0;
 
     c->cache = array_create(cache_size);   
     /* Initializing cache. */
@@ -179,7 +184,6 @@ array_tt core_cache(const struct core *c)
 	return (c->cache);
 }
 
-
 /**
  * @brief Checks if a specified address is already in core's cache.
  * 
@@ -215,6 +219,62 @@ void core_cache_replace(struct core *c, struct mem *addr)
     array_set(c->cache, cache_way, addr);
 }
 
+/**
+ * @brief Sets the number of cache hits that happened while processing.
+ * 
+ * @param c   Target core.
+ * @param hit Number of hits.
+*/
+void core_set_hit(struct core *c, int hit)
+{
+    /* Sanity check. */
+	assert(c != NULL);
+	assert(hit >= 0);
+
+	c->total_hits = hit;
+}
+
+/**
+ * @brief Sets the number of cache misses that happened while processing.
+ * 
+ * @param c   Target core.
+ * @param miss Number of misses.
+*/
+void core_set_miss(struct core *c, int miss)
+{
+    /* Sanity check. */
+	assert(c != NULL);
+	assert(miss >= 0);
+
+	c->total_misses = miss;
+}
+
+/**
+ * @brief Gets the number of cache hits that happened while processing.
+ * 
+ * @param c Target core.
+*/
+int core_hit(const struct core *c)
+{
+    /* Sanity check. */
+	assert(c != NULL);
+
+    return(c->total_hits);
+}
+
+
+/**
+ * @brief Gets the number of cache misses that happened while processing.
+ * 
+ * @param c Target core.
+*/
+int core_miss(const struct core *c)
+{
+    /* Sanity check. */
+	assert(c != NULL);
+
+    return(c->total_misses);
+}
 
 /**
  * @brief Destroys a core.

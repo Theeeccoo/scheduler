@@ -26,6 +26,7 @@
     /**@{*/
     extern const struct scheduler *sched_fcfs;
     extern const struct scheduler *sched_srtf;
+    extern const struct scheduler *sched_sca;
     /**@}*/
 
     /* Forward definitions. */

@@ -11,7 +11,7 @@
 	 * @brief Scheduler penalties.
 	 */
 	/**@{*/
-	#define MISS_PENALTY  3 /**< Cache miss penalty (cycles).  */
+	#define MISS_PENALTY  4 /**< Cache miss penalty (cycles).  */
 	/**@}*/
 
     /**

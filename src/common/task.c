@@ -40,6 +40,11 @@ struct task
 	int work;           /**< Total workload of a task.               */
 	int work_processed; /**< Total workload processed.               */ 
 
+	int core_assigned;  /**< CORE ID where task was assigned (sca).  */
+
+	int hits;			/**< Number of hits.                         */
+	int misses;         /**< Number of misses.                       */
+
 	array_tt memacc;    /**< Tasks memory accesses.                  */
 	int memptr;         /**< Points to the last memory accessed.     */
 
@@ -76,6 +81,9 @@ struct task *task_create(int work, int arrival)
 	task->work_processed = 0;
 	task->e_moment = 0;
 	task->l_moment = 0;
+	task->core_assigned = -1;
+	task->hits = 0;
+	task->misses = 0;
 
 	task->memacc = array_create(work);
 	task->memptr = 0;
@@ -193,17 +201,18 @@ void task_set_lmoment(struct task *ts, int moment)
 /**
  * @brief Creates task's memory address that will be accessed.
  * 
- * @param ts Target task. 
+ * @param ts  Target task. 
+ * @param lim Upper limit of memory addresses. 
 */
-void task_create_memacc(struct task *ts)
+void task_create_memacc(struct task *ts, int lim)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
 
-	/* Storing randomly-generated task's memory acesses. Will contain task_workload random "memory addresses" */
+	/* Storing randomly-generated task's memory acesses. Will contain size(task_workload) random "memory addresses" */
 	for ( int i = 0; i < ts->work; i++ )
 	{
-		struct mem *m = mem_create((rand() % ts->work)); /* Generating the memory accesses. Possible addresses: [0 - task_workload) */
+		struct mem *m = mem_create((rand() % lim)); /* Generating the memory accesses. Possible addresses: [0 - lim) */
 		array_set(ts->memacc, i, m);
 	}
 }
@@ -285,21 +294,19 @@ int task_workload(const struct task *ts)
     return(ts->work);
 }
 
-
 /**
  * @brief Assigns a new workload to given task.
  * 
  * @param ts Target task.
  */
-void task_set_workload(struct task *t, int w)
+void task_set_workload(struct task *ts, int w)
 {
 	/* Sanity check. */
-    assert(t != NULL);
+    assert(ts != NULL);
 	assert(w >= 0);
 
-	t->work = w;
+	ts->work = w;
 }
-
 
 /**
  * @brief Returns the total processed workload of given task.
@@ -349,7 +356,7 @@ array_tt task_memacc(const struct task *ts)
 /**
  * @brief Returns task's memory pointer.
  * 
- * @param Target task.
+ * @param ts Target task.
  * 
  * @returns Task's memory pointer.
 */
@@ -374,6 +381,90 @@ int task_gettsid(const struct task *ts)
 	assert(ts != NULL);
 
 	return (ts->tsid);
+}
+
+/**
+ * @brief Sets the number of cache hits that task had while processing.
+ * 
+ * @param ts  Target task.
+ * @param hit Number of hits.
+*/
+extern void task_set_hit(struct task *ts, int hit)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	assert(hit >= 0);
+
+	ts->hits = hit;
+}
+
+/**
+ * @brief Sets the number of cache misses that task had while processing.
+ * 
+ * @param ts   Target task.
+ * @param miss Number of misses.
+*/
+extern void task_set_miss(struct task *ts, int miss)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+
+	ts->misses = miss;
+}
+
+/**
+ * @brief Gets the number of cache hits that task had while processing.
+ * 
+ * @param ts Target task.
+*/
+extern int task_hit(const struct task *ts)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	return (ts->hits);
+}
+
+/**
+ * @brief Gets the number of cache hits that task had while processing.
+ * 
+ * @param ts Target task.
+*/
+extern int task_miss(const struct task *ts)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	return (ts->misses);
+}
+
+/**
+ * @brief Sets the core id where task is assigned to. Used at SCA scheduling strategy.
+ * 
+ * @param ts  Target task.
+ * @param cid Core id.
+*/
+void task_core_assign(struct task *ts, int cid)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	assert(cid >= 0);
+
+	ts->core_assigned = cid;
+}
+
+/**
+ * @brief Returns the core id where task is assigned to. Used at SCA scheduling strategy.
+ * 
+ * @param ts  Target task.
+ * @param cid Core id.
+ * 
+ * @returns The core id where task is assigned to.
+*/
+int task_core_assigned(const struct task *ts)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+
+	return (ts->core_assigned);
 }
 
 /**

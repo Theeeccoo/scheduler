@@ -66,10 +66,18 @@
 	extern void task_set_workload(task_tt, int);
 
 	extern array_tt task_memacc(const_task_tt);
-	extern void task_create_memacc(task_tt);
+	extern void task_create_memacc(task_tt, int);
 	extern void task_set_memacc(task_tt, array_tt);
 	extern void task_set_memptr(task_tt, int);
 	extern int  task_memptr(const_task_tt);
+
+	extern void task_set_hit(task_tt, int);
+	extern void task_set_miss(task_tt, int);
+	extern int task_hit(const_task_tt);
+	extern int task_miss(const_task_tt);
+
+	extern void task_core_assign(task_tt, int);
+	extern int task_core_assigned(const_task_tt);
 
 	extern int task_gettsid(const_task_tt);
 >>>>>>> 9aff985 (Initial commit.)
