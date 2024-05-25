@@ -106,7 +106,7 @@ struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, i
 		n = floor(histogram_class(h, i)*ntasks);
 
 		for (int j = 0; j < n; j++){
-			queue_insert(w->tasks, task_create(workload_skewness(i, histogram_nclasses(h), skewness), 0));
+			queue_insert(w->tasks, task_create(i + j, workload_skewness(i, histogram_nclasses(h), skewness), 0));
 			k++;
 		}
 	}
@@ -122,7 +122,7 @@ struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, i
 	for (int i = k; i < ntasks; i++)
 	{
 		int j = rand()%histogram_nclasses(h);
-		queue_insert(w->tasks, task_create(workload_skewness(j, histogram_nclasses(h), skewness), 0));
+		queue_insert(w->tasks, task_create(i, workload_skewness(j, histogram_nclasses(h), skewness), 0));
 		k++;
 	}
 
@@ -323,6 +323,7 @@ static void workload_sort_remainingwork(struct workload *w)
 			}
 		}
 	}
+	
 }
 
 /**
@@ -429,7 +430,7 @@ void workload_write(FILE *outfile, struct workload *w)
 	{
 		task_tt ts = queue_peek(workload_tasks(w), i);
 		array_tt memacc = task_memacc(ts);
-		fprintf(outfile, "%d %d ", task_workload(ts), task_arrivaltime(ts));
+		fprintf(outfile, "%d %d %d ", task_realid(ts), task_workload(ts), task_arrivaltime(ts));
 		for ( int j = 0; j < task_workload(ts); j++ )
 		{
 			int *elem = array_get(memacc, j);
@@ -464,11 +465,13 @@ struct workload *workload_read(FILE *infile)
 	w->ntasks = ntasks;
 
 	/* Write workload to file. */
-	int workload  = 0, 
+	int real_id   = 0,
+		workload  = 0, 
 		arrivtime = 0,
 		addr      = 0;
 
 	for (int i = 0; i < ntasks; i++) {
+		assert(fscanf(infile, "%d", &real_id) == 1);
 		assert(fscanf(infile, "%d", &workload) == 1);
 		assert(fscanf(infile, "%d\n", &arrivtime) == 1);
 		array_tt t_addr = array_create(workload);
@@ -480,7 +483,7 @@ struct workload *workload_read(FILE *infile)
 			array_set(t_addr, j, m);
 
 		}
-		task_tt ts = task_create(workload, arrivtime);
+		task_tt ts = task_create(real_id, workload, arrivtime);
 		task_set_memacc(ts, t_addr);
 
 		workload_set_task(w, ts);

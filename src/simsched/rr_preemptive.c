@@ -125,8 +125,6 @@ void processer_rr_preemptive_process(void)
                     {
                         struct mem* m = array_get(task_memacc(ts), position);
                         bool hit = core_cache_checkaddr(c, m);
-                        // TODO lembrar de remover esse print aqui quando for fazer commit
-                        // printf("Addr %d - Hit %d - workload %d - wait_calc %d - global_c %d - aux %d - cid %d\n", mem_addr(m), hit, task_workload(ts), waiting_time, *processdata.g_iterator, aux[c_pos], core_getcid(c));
 
                         if ( hit )
                         {
