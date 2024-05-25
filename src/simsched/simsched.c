@@ -33,11 +33,14 @@ static queue_tt processing;
  */
 static queue_tt running;
 
-void sort_ascending(int *a, int nelements, int *m)
+void sort_ascending(int *a, int nelements, int *m, int *h, int *mi, float *sl)
 {
 	/* Sanity check. */
 	assert(a != NULL);
 	assert(m != NULL);
+	assert(h != NULL);
+	assert(mi != NULL);
+	assert(sl != NULL);
 	assert(nelements > 0);
 
 	/* Short array. */
@@ -48,6 +51,7 @@ void sort_ascending(int *a, int nelements, int *m)
 			if ( a[j] > a[i] )
 			{
 				int tmp; /* Temporary data. */
+				float tmpf;
 
 				tmp = a[i];
 				a[i] = a[j];
@@ -57,6 +61,17 @@ void sort_ascending(int *a, int nelements, int *m)
 				m[i] = m[j];
 				m[j] = tmp;
 
+				tmp = h[i];
+				h[i] = h[j];
+				h[j] = tmp;
+
+				tmp = mi[i];
+				mi[i] = mi[j];
+				mi[j] = tmp;
+
+				tmpf = sl[i];
+				sl[i] = sl[j];
+				sl[j] = tmpf;
 			}
 		}
 	}
@@ -113,30 +128,36 @@ static void simsched_dump(array_tt cores, workload_tt w)
 	stddev = sqrt(stddev/(ncores));
 
 	/** Calculating 99th percentile */
-	int *map        = smalloc(sizeof(int) * ntasks), // 
-		*aux_array  = smalloc(sizeof(int) * ntasks), // Used only for debug purposes                              
+	int *map           = smalloc(sizeof(int) * ntasks), // 
+		*waiting_times = smalloc(sizeof(int) * ntasks), // Used only for debug purposes            
+		*task_hits     = smalloc(sizeof(int) * ntasks), //
+		*task_misses   = smalloc(sizeof(int) * ntasks), //
 		 percentile = 0,
 		 k          = 0;
-	double percentile_index = 0.0f;
+	float *task_slowdown = smalloc(sizeof(float) * ntasks);
 
-	for ( int i = 0; i < ntasks; i++, k++ )
+	double percentile_index = 0.0f;
+	for ( k = 0; k < ntasks; k++ )
 	{
-		task_tt curr_task = queue_peek(workload_fintasks(w), i);
-		map[i] = task_gettsid(curr_task);
-		aux_array[ k ] = task_waiting_time(curr_task);
+		task_tt curr_task = queue_peek(workload_fintasks(w), k);
+		map[k] = task_gettsid(curr_task);
+		waiting_times[k] = task_waiting_time(curr_task);
+		task_hits[k] = task_hit(curr_task);
+		task_misses[k] = task_miss(curr_task);
+		task_slowdown[k] = (((float) task_waiting_time(curr_task) + (float) task_workload(curr_task)) / ((float) task_workload(curr_task)));
 	}
 
-	sort_ascending(aux_array, ntasks, map);
+	sort_ascending(waiting_times, ntasks, map, task_hits, task_misses, task_slowdown);
 
-	// Mapping Task id with its corresponding accumulative waiting_time
+	// Mapping Task id with its corresponding accumulative waiting_time, cache hits and cache misses.
 	for ( int i = 0; i < k; i++)
 	{
-		printf("%d %d\n", map[i], aux_array[i]);
+		printf("%d %d %d %d %lf\n", map[i], waiting_times[i], task_hits[i], task_misses[i], task_slowdown[i]);
 	}
 	percentile_index = (0.99 * ntasks) - 1;
 		
 	rounded_index = round(percentile_index);
-	percentile = ( percentile_index == rounded_index ) ? (aux_array[rounded_index] + aux_array[rounded_index + 1]) / 2 : aux_array[rounded_index];
+	percentile = ( percentile_index == rounded_index ) ? (waiting_times[rounded_index] + waiting_times[rounded_index + 1]) / 2 : waiting_times[rounded_index];
 	int sum = 0;
 	for ( int i = 0; i < queue_size(workload_fintasks(w)); i++ )
 	{
@@ -155,7 +176,9 @@ static void simsched_dump(array_tt cores, workload_tt w)
 	printf("slowdown: %lf\n", max/((double) min));
 
 	free(map);
-	free(aux_array);
+	free(waiting_times);
+	free(task_hits);
+	free(task_misses);
 }
 
 /**

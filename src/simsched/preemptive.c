@@ -105,17 +105,49 @@ void processer_random_preemptive_process(void)
                 */
                 int waiting_time = e_moment - l_moment;
 
+                int amount_processed = 0,
+                    amount_to_process = (rand() % (task_work_left(ts))) + 1; /* Range: [1 - task_work_left) */
+
+                int miss_waited = 0, /* How much waiting time propagated by cache misses. */
+                    position = task_memptr(ts); /* Last address accessed. */
+                /* 
+                    If you want to remove the cache hit/miss analysis, just set the cache size (in arch file) to 0.
+                    You can remove "amount_processed" from this loop and use amount_to_process as amount_processed. It's here for convenience only.
+                */
+                if ( array_size(core_cache(c)) > 0 )
+                {
+                    for ( /* noop */; amount_processed < amount_to_process; position++, amount_processed++ )
+                    {
+                        struct mem* m = array_get(task_memacc(ts), position);
+                        bool hit = core_cache_checkaddr(c, m);
+                        // printf("Addr %d - Hit %d - workload %d - wait_calc %d - global_c %d - aux %d - cid %d\n", mem_addr(m), hit, task_workload(ts), waiting_time, *processdata.g_iterator, aux[c_pos], core_getcid(c));
+
+                        if ( hit )
+                        {
+                            task_set_hit(ts, task_hit(ts) + 1);
+                            core_set_hit(c, core_hit(c) + 1);
+                        }
+                        else
+                        {
+                            task_set_miss(ts, task_miss(ts) + 1);
+                            core_set_miss(c, core_miss(c) + 1);
+                        }
+                        
+                        /* If miss, we must add a penalty. */
+                        miss_waited += (hit) ? 0 : MISS_PENALTY;
+                        core_cache_replace(c, m);
+                    }
+                } else
+                    for ( /* noop */; amount_processed < amount_to_process; amount_processed++ );
+
+                
+                task_set_memptr(ts, position);
+
                 /* Saving the moment that task started to be processed. This value is adjusted with task arrival time */
-                task_set_waiting_time(ts, task_waiting_time(ts) + waiting_time);
+                task_set_waiting_time(ts, task_waiting_time(ts) + waiting_time + miss_waited);
 
-                // int amount_processed = 0,
-                //     amount_to_process = (rand() % (task_work_left(ts))) + 1; /* Range: [1 - task_work_left) */
-                int amount_processed = (rand() % (task_work_left(ts))) + 1; /* Range: [1 - task_work_left) */
-
-                /* For convenience only. If you want to, just remove this 'for' here and use amount_to_process as your processed amount. */
-                // for ( /*noop*/; amount_processed < amount_to_process; amount_processed++ );    
                 task_set_workprocess(ts, task_work_processed(ts) + amount_processed);
-                aux[c_pos] += amount_processed;
+                aux[c_pos] += amount_processed + miss_waited;
 
                 /* If a task has finished, we add into a different queue, otherwise, we 'recycle' it into workload. */
                 if ( task_work_left(ts) == 0 ) queue_insert(workload_fintasks(processdata.workload), ts);

@@ -82,8 +82,9 @@ static int workload_skewness(int i, int nclasses, int skewness)
  */
 struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, int arrskewness,  int ntasks )
 {
-	int k;              /* Residual tasks. */
-	struct workload *w; /* Workload.       */
+	int k;              /* Residual tasks.       */
+	int max_work = 0;   /* Max workload created. */
+	struct workload *w; /* Workload.             */
 
 	/* Sanity check. */
 	assert(h != NULL);
@@ -155,9 +156,15 @@ struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, i
 		k++;
 	}
 
+	for ( int i = 0; i < ntasks; i++ )
+	{
+		task_tt curr_task = queue_peek(w->tasks, i);
+		if ( max_work < task_workload(curr_task) ) max_work = task_workload(curr_task);
+	}
+
 	/* Generating Tasks' memory addresses. */
 	for ( int j = 0; j < ntasks; j ++)
-		task_create_memacc(queue_peek(workload_tasks(w), j));
+		task_create_memacc(queue_peek(workload_tasks(w), j), max_work);
 
 	return (w);
 }
