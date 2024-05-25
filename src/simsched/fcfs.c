@@ -69,7 +69,7 @@ void scheduler_fcfs_end(void)
 }
 
 /**
- * @brief FCFS scheduler.
+ * @brief FCFS scheduler. The first BATCHSIZE tasks will be scheduled to the first free core.
  * 
  * @param running Target queue of running cores.
  * @param c       Target core.
