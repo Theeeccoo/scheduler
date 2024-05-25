@@ -49,7 +49,7 @@ void scheduler_sjrf_end(void)
 }
 
 /**
- * @brief SRJF scheduler.
+ * @brief SRJF scheduler. The first BATCHSIZE tasks will be scheduled to the first free core (tasks are sorted based on their remaining work)
  * 
  * @param running Target queue of running cores.
  * @param c       Target core.
