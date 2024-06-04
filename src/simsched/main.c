@@ -149,8 +149,8 @@ static workload_tt get_workload(const char *filename)
 /**
  * @brief Gets cores.
  * 
- * @param afilename        Input architecture filename.
- * @param ncores           Number of cores in architecture, will be obtained from "afilename"
+ * @param afilename Input architecture filename.
+ * @param ncores    Number of cores in architecture, will be obtained from "afilename"
  * 
  * @return Working cores. 
 */

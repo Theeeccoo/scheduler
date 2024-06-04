@@ -4,23 +4,25 @@
 
 #include <core.h>
 #include <workload.h>
-
+#include <sched_itr.h>
 
 /**
  * @brief Core.
  */
 struct core
 {
-	int cid;           /**< Identification number.                            */
-	int wtotal;        /**< Total assigned workload.                          */
-	int capacity;      /**< Processing capacity.                              */
-    int contention;    /**< Core contention value.                            */
-    queue_tt pr_tasks; /**< Tasks that are currently being processed on Core. */
+	int cid;                 /**< Identification number.                            */
+	int wtotal;              /**< Total assigned workload.                          */
+	int capacity;            /**< Processing capacity.                              */
+    int contention;          /**< Core contention value.                            */
+    queue_tt pr_tasks;       /**< Tasks that are currently being processed on Core. */
 
-    int total_hits;    /**< Total cache hits while processing.                */
-    int total_misses;  /**< Total cache misses while processing.              */
+    queue_tt total_workload; /**< Total workload per scheduling iteration.          */
 
-    array_tt cache;    /**< Core's cache.                                     */
+    int total_hits;          /**< Total cache hits while processing.                */
+    int total_misses;        /**< Total cache misses while processing.              */
+
+    array_tt cache;          /**< Core's cache.                                     */
 };
 
 /**
@@ -53,7 +55,9 @@ struct core *core_create(int capacity, int cache_size)
     /* Initializing cache. */
     for ( int i = 0; i < cache_size; i++ )
         array_set(c->cache, i, mem_create(-1));
-    
+
+    c->total_workload = queue_create();
+    queue_insert(c->total_workload, scheditr_create(0, 0));
     return (c);
 }
 
@@ -99,6 +103,36 @@ void core_vacate(struct core *c)
 
     /* Usually, this queue is emptied throught the simulation */
     for ( int i = 0; i < queue_size(c->pr_tasks); i++ ) queue_remove(c->pr_tasks);
+}
+
+/**
+ * @brief Stores the total workload currently scheduled to desired core. 
+ * 
+ * @param c      Desired Core.
+ * @param wtotal Total Workload.
+ * @param ntasks Total number of tasks. 
+*/
+void core_set_workloads(struct core *c, int wtotal, int ntasks)
+{
+    /* Sanity check. */
+	assert(c != NULL);
+    assert(wtotal >= 0);
+
+    queue_insert(c->total_workload, scheditr_create(wtotal, ntasks));
+}
+
+/**
+ * @brief Returns the queue that stores the total workload scheduled per iteration, until given moment, to desired core. 
+ * 
+ * @param c Desired Core.
+ * 
+ * @returns The queue that stores the total workload scheduled, until given momento, to desired core. 
+*/
+queue_tt core_workloads(const struct core *c)
+{
+    /* Sanity check. */
+	assert(c != NULL);   
+    return (c->total_workload);
 }
 
 int core_wtotal(const struct core *c)
@@ -288,5 +322,6 @@ void core_destroy(struct core *c)
 
     array_destroy(c->cache);
     queue_destroy(c->pr_tasks);
+    free(c->total_workload);
 	free(c);
 }
