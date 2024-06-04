@@ -12,6 +12,7 @@
 #include <core.h>
 #include <scheduler.h>
 #include <workload.h>
+#include <sched_itr.h>
 
 /**
  * @brief Global iterator.
@@ -155,6 +156,8 @@ static void simsched_dump(array_tt cores, workload_tt w)
 
 	sort_ascending(waiting_times, ntasks, map, task_hits, task_misses, task_slowdown, ids);
 
+	
+	/** Print statistics. */
 	// Mapping Task id with its corresponding accumulative waiting_time, cache hits and cache misses.
 	for ( int i = 0; i < k; i++)
 	{
@@ -171,7 +174,31 @@ static void simsched_dump(array_tt cores, workload_tt w)
 		sum += task_waiting_time(ts);
 	}
 
-	/** Print statistics. */
+	// Analysing how well balanced was the scheduling.
+	int num_itr = queue_size(core_workloads(array_get(cores, 0)));
+	int *all_wrk = smalloc(sizeof(int) * ncores);
+	for ( int i = 1; i < num_itr; i++ )
+	{
+		int diff = 0;
+		printf("Balancing: ");
+		for( int j = 0; j < array_size(cores); j++ )
+		{
+			core_tt c = array_get(cores, j);
+			all_wrk[j] = scheditr_twork(queue_peek(core_workloads(c), i));
+			printf("%d \t", all_wrk[j]);
+		}
+
+		for (int j = 0; j < ncores; j++ )
+		{
+			for (int k = j + 1; k < ncores; k++ )
+			{
+				diff += abs(all_wrk[j] - all_wrk[k]);
+			}
+		}
+		printf("%d\n", abs(diff));
+	}
+	
+
 	printf("waiting time sum: %d\n", sum);
 	printf("99th Percentile: %d\n", percentile);
 	printf("time: %lf\n", max);

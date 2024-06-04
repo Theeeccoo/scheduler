@@ -55,6 +55,7 @@ simsched:                         \
 		common/mem.o			  \
 		simsched/simsched.o       \
 		simsched/core.o           \
+		simsched/sched_itr.o      \
 		simsched/fcfs.o           \
 		simsched/srtf.o           \
 		simsched/sca.o            \

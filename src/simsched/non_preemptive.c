@@ -47,7 +47,17 @@ void processer_non_preemptive_process(void)
        This value is zeroed at the end, and the max(aux) value is considered. 
     */
     int *aux = smalloc(array_size(processdata.cores));
-    for ( int i = 0; i < array_size(processdata.cores); i++ ) aux[i] = 0;
+    for ( int i = 0; i < array_size(processdata.cores); i++ ) 
+    {
+        core_tt c = array_get(processdata.cores, i);
+        queue_tt tsks = core_get_tsks(c);
+        int size = queue_size(tsks);
+        int acc = 0;
+        for ( int j = 0; j < size; j++ ) 
+            acc += task_work_left(queue_peek(tsks, j));
+        core_set_workloads(c, acc, size);
+        aux[i] = 0;
+    }
 
     /* 
         Number of iterations that will be spent processing tasks. 

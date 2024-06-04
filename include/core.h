@@ -34,13 +34,16 @@
 
 	extern void core_set_hit(core_tt, int);
 	extern void core_set_miss(core_tt, int);
-	extern int core_hit(const_core_tt);
-	extern int core_miss(const_core_tt);
+	extern int  core_hit(const_core_tt);
+	extern int  core_miss(const_core_tt);
 
 	extern bool core_cache_checkaddr(const_core_tt, mem_tt);
 	extern void core_cache_replace(core_tt, mem_tt);
 	extern void core_set_contention(core_tt, int);
 	extern int  core_contention(const_core_tt);
+
+	extern void core_set_workloads(core_tt, int, int);
+	extern queue_tt core_workloads(const_core_tt);
 	extern int  core_wtotal(const_core_tt);
     /**@}*/
 

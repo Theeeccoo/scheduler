@@ -99,8 +99,7 @@ int scheduler_fcfs_sched(core_tt c)
 	}
 	
 	/* If any task was scheduled, global 'time' must increase based on number of scheduled tasks. */
-    g_iterator += ( n > 0 ) ? n : 1;
-	
+    g_iterator += ( n > 0 ) ? n : 1;	
 
 	return (n);
 }
