@@ -282,8 +282,9 @@ static core_tt choose_core(queue_tt q)
  * @param processer Processing strategy.
  * @param cores     Working cores.
  * @param batchsize Batchsize;
+ * @param winsize   Memory accesses window size.
  */
-void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, const struct processer *processer, int batchsize)
+void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, const struct processer *processer, int batchsize, int winsize)
 {
 	/* Sanity check. */
 	assert(w != NULL);
@@ -297,6 +298,7 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 
     processing = queue_create();
 
+	printf("%d\n", winsize);
 	/* 
 	 * 'workload' is a critical region, so we must add a queue contention delay to proper analyse.
 	 * This value is accumulative and calculated based on how many iterations was spent scheduling tasks.
