@@ -46,10 +46,10 @@ struct task
 	int hits;			/**< Number of hits.                         */
 	int misses;         /**< Number of misses.                       */
 
-	array_tt memacc;    /**< Tasks memory accesses.                  */
+	array_tt memacc;    /**< Tasks' memory accesses.                 */
 	int memptr;         /**< Points to the last memory accessed.     */
 
-	int e_moment;       /**< Moment when task (re)entered in a core. */
+	int e_moment;       /**< Moment when task (r)entered in a core.  */
 	int l_moment;       /**< Moment when task left from a core.      */
 };
 

@@ -18,14 +18,15 @@
  */
 static struct
 {
-	workload_tt workload;              /**< Input workload.           */
-    array_tt cores;                    /**< Cores to process tasks.   */
-	const struct scheduler *scheduler; /**< Loop scheduling strategy. */
-	const struct processer *processer; /**< Core processing strategy. */
-	int batchsize;                     /**< Scheduling batch size.    */
-	int seed;                          /**< Seed.                     */
-	void (*kernel)(workload_tt);       /**< Application kernel.       */
-} args = { NULL, NULL, NULL, NULL, 1, 0, NULL };
+	workload_tt workload;              /**< Input workload.              */
+    array_tt cores;                    /**< Cores to process tasks.      */
+	const struct scheduler *scheduler; /**< Loop scheduling strategy.    */
+	const struct processer *processer; /**< Core processing strategy.    */
+	int winsize;                       /**< Memory accesses window size. */
+	int batchsize;                     /**< Scheduling batch size.       */
+	int seed;                          /**< Seed.                        */
+	void (*kernel)(workload_tt);       /**< Application kernel.          */
+} args = { NULL, NULL, NULL, NULL, 0, 1, 0, NULL };
 
 
 /*============================================================================*
@@ -112,12 +113,13 @@ static void usage(void)
 	printf("           quadratic            Quadratic kernel.\n");
 	printf("  --input <filename>      Input workload file.\n");
 	printf("  --ncores <number>       Number of working cores.\n");
+	printf("  --winsize <number>      Memory Accesses Window size\n");
 	printf("  --seed <number>         Seed value.\n");
 	printf("  --help                  Display this message.\n");
 	printf("Schedulers:\n");
-	printf("  fcfs   First-Come, First-Served Scheduling.\n");
-	printf("  srtf   Shortest Remaining Time First.\n");
-	printf("  sca    Same Core Always.\n");
+	printf("  fcfs               First-Come, First-Served Scheduling.\n");
+	printf("  srtf               Shortest Remaining Time First.\n");
+	printf("  sca                Same Core Always.\n");
 
 
 	exit(EXIT_SUCCESS);
@@ -216,12 +218,12 @@ static void (*get_kernel(const char *kernelname))(workload_tt)
 /**
  * @brief Checks program arguments.
  *
- * @param wfilename  Input workload filename.
- * @param afilename  Input architecture filename.
- * @param kernelname Application kernel name.
- * @param quantum    
+ * @param wfilename   Input workload filename.
+ * @param afilename   Input architecture filename.
+ * @param kernelname  Application kernel name.
+ * @param has_winsize Checks is winsize was informed.
 */
-static void checkargs(const char *wfilename, const char *afilename, const char *kernelname)
+static void checkargs(const char *wfilename, const char *afilename, const char *kernelname, int has_winsize)
 {
 	if (afilename == NULL)
 		error("missing architecture file");
@@ -233,6 +235,8 @@ static void checkargs(const char *wfilename, const char *afilename, const char *
 		error("missing cores' processing strategy.");
 	if (args.scheduler == NULL)
 		error("missing loop scheduling strategy");
+	if (!has_winsize)
+		error("missing window size.");
 }
 
 /**
@@ -246,7 +250,9 @@ static void readargs(int argc, const char **argv)
 	const char *wfilename  = NULL;
 	const char *afilename  = NULL;
 	const char *kernelname = NULL;
-    int ncores = 0;
+    int ncores      = 0,
+		has_winsize = 0;
+
 
 	/* Parse command line arguments. */
 	for (int i = 1; i < argc; i++)
@@ -272,6 +278,11 @@ static void readargs(int argc, const char **argv)
 			kernelname = argv[++i];
 		else if (!strcmp(argv[i], "--ncores"))
 			ncores = atoi(argv[++i]);
+		else if (!strcmp(argv[i], "--winsize"))
+		{
+			args.winsize = atoi(argv[++i]);
+			has_winsize = 1;
+		}
 		else if (!strcmp(argv[i], "--seed"))
 			args.seed = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "--help"))
@@ -290,7 +301,7 @@ static void readargs(int argc, const char **argv)
 		}
 	}
 
-	checkargs(wfilename, afilename, kernelname);
+	checkargs(wfilename, afilename, kernelname, has_winsize);
 
 	args.workload = get_workload(wfilename);
     args.cores = get_cores(afilename, ncores);
@@ -314,7 +325,7 @@ int main(int argc, const char** argv)
 
 	workload_sort(args.workload, WORKLOAD_ARRIVAL);
 
-	simsched(args.workload, args.cores, args.scheduler, args.processer, args.batchsize);
+	simsched(args.workload, args.cores, args.scheduler, args.processer, args.batchsize, args.winsize);
 
 	/* House keeping, */
 	for (int i = 0; i < array_size(args.cores); i++)

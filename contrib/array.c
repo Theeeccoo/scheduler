@@ -23,6 +23,7 @@
 #include <stdlib.h>
 
 #include <mylib/util.h>
+#include <mylib/array.h>
 
 /**
  * @brief Array.
