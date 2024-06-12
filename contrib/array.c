@@ -30,8 +30,8 @@
  */
 struct array
 {
-	int size;         /**< Maximum size.               */
-	void **elements;  /**< Elements.                   */
+	unsigned long int size; /**< Maximum size. */
+	void **elements;        /**< Elements.     */
 };
 
 /**
@@ -39,12 +39,9 @@ struct array
  *
  * @param size Array size.
  */
-struct array *array_create(int size)
+struct array *array_create(unsigned long int size)
 {
 	struct array *a;
-	
-	/* Sanity check. */
-	assert(size >= 0);
 
 	/* Create array. */
 	a = smalloc(sizeof(struct array));
@@ -73,7 +70,7 @@ void array_destroy(struct array *a)
  *
  * @param a Target array.
  */
-int array_size(const struct array *a)
+unsigned long int array_size(const struct array *a)
 {
 	/* Sanity check. */
 	assert(a != NULL);
@@ -88,11 +85,11 @@ int array_size(const struct array *a)
  * @param idx Index.
  * @param obj Object.
  */
-void array_set(struct array *a, int idx, void *obj)
+void array_set(struct array *a, unsigned long int idx, void *obj)
 {
 	/* Sanity check. */
 	assert(a != NULL);
-	assert((idx >= 0) && (idx < a->size));
+	assert((idx < a->size));
 	assert(obj != NULL);
 
 	a->elements[idx] = obj;
@@ -106,11 +103,11 @@ void array_set(struct array *a, int idx, void *obj)
  *
  * @returns The ith element of the target array.
  */
-void *array_get(const struct array *a, int idx)
+void *array_get(const struct array *a, unsigned long int idx)
 {
 	/* Sanity check. */
 	assert(a != NULL);
-	assert((idx >= 0) && (idx < a->size));
+	assert((idx < a->size));
 
 	return (a->elements[idx]);
 }
@@ -126,7 +123,7 @@ void array_shuffle(struct array *a)
 	assert(a != NULL);
 
 	/* Shuffle array. */
-	for (int i = 0; i < a->size - 1; i++)
+	for (unsigned long int i = 0; i < a->size - 1; i++)
 	{
 		int j;     /* Shuffle index.  */
 		void *tmp; /* Temporary data. */

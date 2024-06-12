@@ -23,6 +23,7 @@
 #define TASK_H_
 
 	#include "mylib/array.h"
+	#include "statistics.h"
 
 	/**
 	 * @brief Opaque pointer to a task.
@@ -38,16 +39,17 @@
 	 * @name Operations on Task
 	 */
 	/**@{*/
-	extern task_tt task_create(int, int, int);
+	extern task_tt task_create(int, unsigned long int, int);
 	extern void task_destroy(task_tt);
 	extern void task_set_realid(task_tt, int);
-	extern int  task_realid(const_task_tt);
+	extern int task_gettsid(const_task_tt);
+	extern int task_realid(const_task_tt);
 
 	extern int task_arrivaltime(const_task_tt);
 	extern int task_waiting_time(const_task_tt);
-	extern int task_workload(const_task_tt);
-	extern int task_work_processed(const_task_tt);
-	extern int task_work_left(const_task_tt);
+	extern unsigned long int task_workload(const_task_tt);
+	extern unsigned long int task_work_processed(const_task_tt);
+	extern unsigned long int task_work_left(const_task_tt);
 	extern int task_emoment(const_task_tt);
 	extern int task_lmoment(const_task_tt);
 
@@ -55,24 +57,41 @@
 	extern void task_set_arrivaltime(task_tt, int);
 	extern void task_set_emoment(task_tt, int);
 	extern void task_set_lmoment(task_tt, int);
-	extern void task_set_workprocess(task_tt, int);
-	extern void task_set_workload(task_tt, int);
+	extern void task_set_workprocess(task_tt, unsigned long int);
+	extern void task_set_workload(task_tt, unsigned long int);
+
+	extern bool task_check_pt_line_valid(const_task_tt, int);
+	extern int  task_find_pt_line_frame_id(const_task_tt, int);
+	extern int  task_find_pt_line_memptr(const_task_tt);
+	extern int  task_get_pt_line_frameid(const_task_tt, int);
+	extern void task_set_pt_line_frameid(task_tt, int, int);
+	extern void task_invalid_pt_line(task_tt, int);
+	extern void task_valid_pt_line(task_tt, int);
+	extern int  task_pt_line_frameid(const_task_tt, int);
+	extern int  task_pt_num_lines(const_task_tt);
 
 	extern array_tt task_memacc(const_task_tt);
-	extern void task_create_memacc(task_tt, int);
+	extern void task_create_memacc(task_tt, histogram_tt);
 	extern void task_set_memacc(task_tt, array_tt);
-	extern void task_set_memptr(task_tt, int);
-	extern int  task_memptr(const_task_tt);
+	extern void task_set_memptr(task_tt, unsigned long int);
+	extern unsigned long int task_memptr(const_task_tt);
+	extern unsigned long int* task_lineacc(const_task_tt);
+	extern unsigned long int* task_pageacc(const_task_tt);
+	extern bool task_accessed_set(const_task_tt, unsigned long int, int);
 
-	extern void task_set_hit(task_tt, int);
-	extern void task_set_miss(task_tt, int);
-	extern int task_hit(const_task_tt);
-	extern int task_miss(const_task_tt);
+	
+	extern void task_set_page_hit(task_tt, unsigned long int);
+	extern void task_set_page_fault(task_tt, unsigned long int);
+	extern unsigned long int task_page_hit(const_task_tt);
+	extern unsigned long int task_page_fault(const_task_tt);
+	extern void task_set_hit(task_tt, unsigned long int);
+	extern void task_set_miss(task_tt, unsigned long int);
+	extern unsigned long int task_hit(const_task_tt);
+	extern unsigned long int task_miss(const_task_tt);
 
 	extern void task_core_assign(task_tt, int);
 	extern int task_core_assigned(const_task_tt);
 
-	extern int task_gettsid(const_task_tt);
 	/**@}*/
 
 #endif /* TASK_H_ */

@@ -51,17 +51,17 @@ void scheduler_sca_end(void)
 /**
  * @brief SCA scheduler. A Task will be scheduled to the same core (always). If a task hasn't been scheduled yet, it goes to the first free core.
  * 
- * @param running Target queue of running cores.
- * @param c       Target core.
+ * @param c     Target core.
+ * @param tasks Mapped tasks to current core.
  * 
  * @returns Number of scheduled tasks.
 */
-int scheduler_sca_sched(core_tt c)
+int scheduler_sca_sched(core_tt c, queue_tt tasks)
 {
     int n = 0;       /* Number of tasks scheduled.      */
 	int wsize = 0;   /* Size of assigned work.          */
 	int wk_size = workload_totaltasks(scheddata.workload); /* Total number of left tasks in workload. */
-	int cr_size = workload_currtasks(scheddata.workload);  /* Current number of tasks that have 'arrived'. */
+	int cr_size = queue_size(tasks);  /* Current number of tasks that have 'arrived'. */
 
 	
 	/* We should schedule when there are, atleast, batchsize tasks free OR whenever the total left has arrived. */
@@ -73,12 +73,12 @@ int scheduler_sca_sched(core_tt c)
             /* Scheduled enough tasks. */
             if ( n == scheddata.batchsize) break;
 
-            task_tt curr_task = queue_remove(workload_arrtasks(scheddata.workload));
+            task_tt curr_task = queue_remove(tasks);
             
             /* If task shouldn't be scheduled to "c", recycle it. */
             if ( task_core_assigned(curr_task) != -1 && task_core_assigned(curr_task) != core_getcid(c) )
             {
-                queue_insert(workload_arrtasks(scheddata.workload), curr_task);
+                queue_insert(tasks, curr_task);
                 continue;
             }
 

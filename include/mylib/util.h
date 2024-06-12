@@ -27,7 +27,4 @@
 	/* Forward definitions. */
 	extern void *smalloc(size_t);
 	extern void error(const char *);
-
-	extern double jaccard_distance(int*, int*, int);
-
 #endif /* UTIL_H_ */

@@ -33,21 +33,6 @@ workloadgen:                \
 	$(LD) $(CFLAGS) $^ -o $(BINDIR)/workloadgen $(LIBS)
 
 # Builds SimSched.
-<<<<<<< HEAD
-simsched:                   \
-		common/workload.o   \
-		common/statistics.o \
-		common/task.o       \
-		simsched/simsched.o \
-		simsched/thread.o   \
-		simsched/static.o   \
-		simsched/guided.o   \
-		simsched/dynamic.o  \
-		simsched/hss.o      \
-		simsched/kass.o     \
-		simsched/binlpt.o   \
-		simsched/srr.o      \
-=======
 simsched:                         \
 		common/workload.o         \
 		common/statistics.o       \
@@ -62,10 +47,14 @@ simsched:                         \
 		simsched/non_preemptive.o \
 		simsched/preemptive.o     \
 		simsched/rr_preemptive.o  \
->>>>>>> 7f1db94 (Removing thread structure from simulation)
+		simsched/mmu.o            \
+		simsched/ram.o            \
+		simsched/cache.o          \
+		simsched/model.o          \
 		simsched/main.o
 	@mkdir -p $(BINDIR)
 	$(LD) $(CFLAGS) $^ -o $(BINDIR)/simsched $(LIBS)
+
 
 # Builds object file from C source file.
 %.o: %.c

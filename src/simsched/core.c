@@ -11,18 +11,22 @@
  */
 struct core
 {
-	int cid;                 /**< Identification number.                            */
-	int wtotal;              /**< Total assigned workload.                          */
-	int capacity;            /**< Processing capacity.                              */
-    int contention;          /**< Core contention value.                            */
-    queue_tt pr_tasks;       /**< Tasks that are currently being processed on Core. */
+	int cid;                            /**< Identification number.                            */
+	unsigned long int wtotal;           /**< Total assigned workload.                          */
+	int capacity;                       /**< Max number of tasks.                              */
+    int contention;                     /**< Core contention value.                            */
+    queue_tt pr_tasks;                  /**< Tasks that are currently being processed on Core. */
 
-    queue_tt total_workload; /**< Total workload per scheduling iteration.          */
+    queue_tt total_workload;            /**< Total workload per scheduling iteration.          */
 
-    int total_hits;          /**< Total cache hits while processing.                */
-    int total_misses;        /**< Total cache misses while processing.              */
+    unsigned long int total_page_hit;   /**< Total page hits while processing.                 */
+    unsigned long int total_page_fault; /**< Total page faults while processing.               */
 
-    array_tt cache;          /**< Core's cache.                                     */
+    unsigned long int total_hits;       /**< Total cache hits while processing.                */
+    unsigned long int total_misses;     /**< Total cache misses while processing.              */
+
+    cache_tt cache;                     /**< Core's cache.                                     */
+    mmu_tt mmu;                         /**< Core's MMU.                                       */
 };
 
 /**
@@ -33,14 +37,22 @@ static int next_cid = 0;
 /**
  * @brief Creates a core.
  * 
- * @param capacity   Processing capacity.
- * @param cache_size Cache size.
+ * @param capacity   Max number of tasks.
+ * @param cache_sets Total number of cache sets.
+ * @param cache_ways Total number of cache ways.
+ * @param num_blocks Total number of blocks per cache way.
  * 
  * @returns A Core.
 */
-struct core *core_create(int capacity, int cache_size)
+struct core *core_create(int capacity, int cache_sets, int cache_ways, int num_blocks)
 {
     struct core *c;
+    
+    /* Sanity Check. */
+    assert(capacity > 0);
+    assert(cache_sets > 0);
+    assert(cache_ways > 0);
+    assert(num_blocks > 0);
 
     c = smalloc(sizeof(struct core));
     c->cid = next_cid++;
@@ -48,13 +60,15 @@ struct core *core_create(int capacity, int cache_size)
     c->capacity = capacity;
     c->contention = 0;
     c->pr_tasks = queue_create();
+    c->total_page_hit = 0;
+    c->total_page_fault = 0;
     c->total_hits = 0;
     c->total_misses = 0;
 
-    c->cache = array_create(cache_size);   
     /* Initializing cache. */
-    for ( int i = 0; i < cache_size; i++ )
-        array_set(c->cache, i, mem_create(-1));
+    c->cache = cache_create(cache_sets, cache_ways, num_blocks);
+    /* Initializing MMU. */
+    c->mmu = mmu_create(c->cid);
 
     c->total_workload = queue_create();
     queue_insert(c->total_workload, scheditr_create(0, 0));
@@ -112,11 +126,10 @@ void core_vacate(struct core *c)
  * @param wtotal Total Workload.
  * @param ntasks Total number of tasks. 
 */
-void core_set_workloads(struct core *c, int wtotal, int ntasks)
+void core_set_workloads(struct core *c, unsigned long int wtotal, int ntasks)
 {
     /* Sanity check. */
 	assert(c != NULL);
-    assert(wtotal >= 0);
 
     queue_insert(c->total_workload, scheditr_create(wtotal, ntasks));
 }
@@ -135,7 +148,14 @@ queue_tt core_workloads(const struct core *c)
     return (c->total_workload);
 }
 
-int core_wtotal(const struct core *c)
+/**
+ * @brief Returns the total workload that a core has received at given moment.
+ * 
+ * @param c Target core.
+ * 
+ * @returns The total workload that a core has received at given moment.
+ */
+unsigned long int core_wtotal(const struct core *c)
 {
     /* Sanity check. */
 	assert(c != NULL);
@@ -191,7 +211,7 @@ int core_contention(const struct core *c)
 /**
  * @brief Gets the ID of a core.
  *
- * @param ts Target core.
+ * @param c Target core.
  *
  * @returns The ID of the target core.
  */
@@ -204,18 +224,70 @@ int core_getcid(const struct core *c)
 }
 
 /**
- * @brief Gets the cache of a core.
- *
- * @param ts Target core.
- *
- * @returns The cache of the target core.
+ * @brief Returns cache's number of acesses in each cache set. 
+ * 
+ * @param c Target core.
+ * 
+ * @returns Cache's number of acesses in each cache set.
  */
-array_tt core_cache(const struct core *c)
+int* core_cache_sets_accesses(const struct core *c)
+{
+    /* Sanity check. */
+    assert(c != NULL);
+    assert(c->cache != NULL);
+    return cache_set_accesses(c->cache);
+}
+
+/**
+ * @brief Updates cache's number of acesses of a specified cache set.
+ * 
+ * @param c            Target core.
+ * @param index        Target set.
+ * @param update_value Desired update value.
+ */
+void core_cache_sets_accesses_update(struct core *c, int index, int update_value)
+{
+    /* Sanity check. */
+    assert(c != NULL);
+    cache_set_accesses_update(c->cache, index, update_value);
+}
+
+/**
+ * @brief Translates the virtual memory to physical memory using RAM's frames.
+ * The physical address translated is inside "mem". 
+ * Translation is made by core's MMU.
+ * 
+ * @param c   Target core.
+ * @param ts  Task responsible of specified memory instance.
+ * @param mem Desired instace of memory to be translated.
+ * @param ram Simulation's RAM.
+ * 
+ * @returns True if Page Hit. False if Page Fault.
+ */
+bool core_mmu_translate(struct core *c, struct task *ts, struct mem *mem, struct RAM *ram)
 {
     /* Sanity check. */
 	assert(c != NULL);
+	assert(ts != NULL);
+    assert(mem != NULL);
+	assert(ram != NULL);
 
-	return (c->cache);
+    return (mmu_translate(c->mmu, ts, mem, ram));
+}
+
+/**
+ * @brief Returns the number of cache sets in a core.
+ * 
+ * @param c Target core.
+ * 
+ * @returns The number of cache sets in core's cache.
+ */
+int core_cache_num_sets(const struct core *c)
+{
+	/* Sanity check. */
+	assert(c != NULL);
+
+	return cache_num_sets(c->cache);
 }
 
 /**
@@ -224,7 +296,7 @@ array_tt core_cache(const struct core *c)
  * @param c    Target core.
  * @param addr Specified addr.
  * 
- * @return True if hit. False if miss.
+ * @return True if cache hit. False if cache miss.
 */
 bool core_cache_checkaddr(const struct core *c, struct mem *addr)
 {   
@@ -232,13 +304,11 @@ bool core_cache_checkaddr(const struct core *c, struct mem *addr)
 	assert(c != NULL);
     assert(addr != NULL);
 
-    int cache_way = mem_addr(addr) % array_size(c->cache);
-    struct mem* c_addr = array_get(c->cache, cache_way);
-    return (mem_addr(c_addr) == mem_addr(addr));
-}   
+    return cache_check_addr(c->cache, addr);
+}  
 
 /**
- * @brief Replaces a cache way with a new address.
+ * @brief Replaces a cache way with a new address. FIFO approach
  * 
  * @param c    Target core.
  * @param addr New address.
@@ -249,8 +319,57 @@ void core_cache_replace(struct core *c, struct mem *addr)
 	assert(c != NULL);
     assert(addr != NULL);
 
-    int cache_way = mem_addr(addr) % array_size(c->cache);
-    array_set(c->cache, cache_way, addr);
+    cache_replace(c->cache, addr);
+}
+
+/**
+ * @brief Sets the number of page hits that happened while processing.
+ * 
+ * @param c     Target core.
+ * @param p_hit Number of hits.
+*/
+void core_set_page_hit(struct core *c, unsigned long int p_hit)
+{
+    /* Sanity check. */
+    assert(c != NULL);
+    c->total_page_hit = p_hit;
+}
+
+/**
+ * @brief Sets the number of page faults that happened while processing.
+ * 
+ * @param c       Target core.
+ * @param p_fault Number of faults.
+*/
+void core_set_page_fault(struct core *c, unsigned long int p_fault)
+{
+    /* Sanity check. */
+    assert(c != NULL);
+    c->total_page_fault = p_fault;
+}
+
+/**
+ * @brief Gets the number of page hits that happened while processing.
+ * 
+ * @param c Target core.
+*/
+unsigned long int core_page_hit(const struct core *c)
+{
+    /* Sanity check. */
+    assert(c != NULL);
+    return (c->total_page_hit);
+}
+
+/**
+ * @brief Gets the number of page faults that happened while processing.
+ * 
+ * @param c Target core.
+*/
+unsigned long int core_page_fault(const struct core *c)
+{
+    /* Sanity check. */
+    assert(c != NULL);
+    return (c->total_page_fault);
 }
 
 /**
@@ -259,11 +378,10 @@ void core_cache_replace(struct core *c, struct mem *addr)
  * @param c   Target core.
  * @param hit Number of hits.
 */
-void core_set_hit(struct core *c, int hit)
+void core_set_hit(struct core *c, unsigned long int hit)
 {
     /* Sanity check. */
 	assert(c != NULL);
-	assert(hit >= 0);
 
 	c->total_hits = hit;
 }
@@ -274,11 +392,10 @@ void core_set_hit(struct core *c, int hit)
  * @param c   Target core.
  * @param miss Number of misses.
 */
-void core_set_miss(struct core *c, int miss)
+void core_set_miss(struct core *c, unsigned long int miss)
 {
     /* Sanity check. */
 	assert(c != NULL);
-	assert(miss >= 0);
 
 	c->total_misses = miss;
 }
@@ -288,7 +405,7 @@ void core_set_miss(struct core *c, int miss)
  * 
  * @param c Target core.
 */
-int core_hit(const struct core *c)
+unsigned long int core_hit(const struct core *c)
 {
     /* Sanity check. */
 	assert(c != NULL);
@@ -302,7 +419,7 @@ int core_hit(const struct core *c)
  * 
  * @param c Target core.
 */
-int core_miss(const struct core *c)
+unsigned long int core_miss(const struct core *c)
 {
     /* Sanity check. */
 	assert(c != NULL);
@@ -320,8 +437,18 @@ void core_destroy(struct core *c)
 	/* Sanity check. */
 	assert(c != NULL);
 
-    array_destroy(c->cache);
+    mmu_destroy(c->mmu);
+    cache_destroy(c->cache);
+    for ( int i = 0; i < queue_size(c->pr_tasks); i++ )
+    {
+        task_destroy(queue_remove(c->pr_tasks));
+    }
     queue_destroy(c->pr_tasks);
-    free(c->total_workload);
+
+    for ( int i = 0; i < queue_size(c->total_workload); i++ )
+    {
+        scheditr_destroy(queue_remove(c->total_workload));
+    }
+    queue_destroy(c->total_workload);
 	free(c);
 }

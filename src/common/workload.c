@@ -31,15 +31,18 @@
 #include <statistics.h>
 #include <workload.h>
 
+typedef int (*FUNC_PTR)(task_tt, task_tt);
+
 /**
  * @brief Synthetic workload.
  */
 struct workload
 {
-	int ntasks;              /**< Total number of tasks.                      */
-	queue_tt tasks;          /**< All initial tasks.                          */
-	queue_tt arrived_tasks;  /**< All tasks that are current being processed. */
-	queue_tt finished_tasks; /**< All tasks that have finished.               */
+	int ntasks;                 /**< Total number of tasks.                                                                                                                                                                                                              */
+	array_tt all_tasks;         /**< All tasks in our simulation.                                                                                                                                                                                                        */
+	queue_tt tasks;             /**< All initial tasks.                                                                                                                                                                                                                  */
+	array_tt all_arrived_tasks; /**< All queues of tasks that will be assigned to cores. There are ncores + 2 arrays. 0 to ncores are the queues for each core. Second from last has the tasks (not yet grouped) but processed. Last position has the not grouped cores. */
+	queue_tt finished_tasks;    /**< All tasks that have finished.                                                                                                                                                                                                       */
 };
 
 /**
@@ -80,10 +83,9 @@ static int workload_skewness(int i, int nclasses, int skewness)
  * @param arrskewness Arrival time Skewness.
  * @param ntasks      Number of tasks.
  */
-struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, int arrskewness,  int ntasks )
+struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, int arrskewness,  int ntasks)
 {
 	int k;              /* Residual tasks.       */
-	int max_work = 0;   /* Max workload created. */
 	struct workload *w; /* Workload.             */
 
 	/* Sanity check. */
@@ -92,9 +94,10 @@ struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, i
 
 	/* Create workload. */
 	w = smalloc(sizeof(struct workload));
-	w->ntasks = ntasks;
+	w->ntasks = ntasks;   
+	w->all_tasks = array_create(0);
 	w->tasks = queue_create();
-	w->arrived_tasks = queue_create();
+	w->all_arrived_tasks = array_create(0);
 	w->finished_tasks = queue_create();
 
 	/* Create workload. */
@@ -106,8 +109,7 @@ struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, i
 		n = floor(histogram_class(h, i)*ntasks);
 
 		for (int j = 0; j < n; j++){
-			queue_insert(w->tasks, task_create(i + j, workload_skewness(i, histogram_nclasses(h), skewness), 0));
-			k++;
+			queue_insert(w->tasks, task_create(k++, workload_skewness(i, histogram_nclasses(h), skewness), 0));
 		}
 	}
 
@@ -122,8 +124,7 @@ struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, i
 	for (int i = k; i < ntasks; i++)
 	{
 		int j = rand()%histogram_nclasses(h);
-		queue_insert(w->tasks, task_create(i, workload_skewness(j, histogram_nclasses(h), skewness), 0));
-		k++;
+		queue_insert(w->tasks, task_create(k++, workload_skewness(j, histogram_nclasses(h), skewness), 0));
 	}
 
 	/* ARRIVAL TIME. */
@@ -156,16 +157,15 @@ struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, i
 		k++;
 	}
 
-	for ( int i = 0; i < ntasks; i++ )
-	{
-		task_tt curr_task = queue_peek(w->tasks, i);
-		if ( max_work < task_workload(curr_task) ) max_work = task_workload(curr_task);
-	}
-
 	/* Generating Tasks' memory addresses. */
-	for ( int j = 0; j < ntasks; j ++)
-		task_create_memacc(queue_peek(workload_tasks(w), j), max_work);
+	distribution_tt dist_accesses = dist_gaussian();
 
+	for ( int j = 0; j < ntasks; j ++)
+	{
+		task_tt curr_task = queue_peek(workload_tasks(w), j);
+		histogram_tt histogram_accesses = distribution_histogram(dist_accesses, (int)round(task_workload(curr_task)/2));
+		task_create_memacc(curr_task, histogram_accesses);
+	}
 	return (w);
 }
 
@@ -178,67 +178,105 @@ void workload_destroy(struct workload *w)
 {
 	/* Sanity check. */
 	assert(w != NULL);
-	
+
 	queue_destroy(w->tasks);
-	queue_destroy(w->arrived_tasks);
-	queue_destroy(w->finished_tasks);
+	for ( unsigned long int i = 0; i < array_size(w->all_arrived_tasks); i++ )
+		queue_destroy(array_get(w->all_arrived_tasks, i));
+	array_destroy(w->all_arrived_tasks);
+	array_destroy(w->all_tasks);
 	free(w);
 }
 
 /**
  * @brief Sorts tasks in ascending order.
  *
- * @param w Target workload.
+ * @param elem1 Target task.
+ * @param elem2 Target task.
+ * 
+ * @returns 1 If first task's workload is lesser than second. 0 If both have the same value. -1 If first task's workload is greater than second
  */
-static void workload_ascending(struct workload *w)
+static int workload_ascending(task_tt elem1, task_tt elem2)
 {
-	/* Sanity check. */
-	assert(w != NULL);
+	int sub_result = task_workload(elem1) - task_workload(elem2);
+	int return_result = 0;
 
-	for (int i = 0; i < w->ntasks; i++)
-	{
-		for (int j = 0; j < w->ntasks; j++)
-		{
-			task_tt task_i = queue_peek(workload_tasks(w), i);
-			task_tt task_j = queue_peek(workload_tasks(w), j);
-			if (task_workload(task_j) < task_workload(task_i))
-			{
-				task_tt task_tmp = NULL;
-
-				task_tmp = task_j;
-				queue_change_elem(w->tasks, j, task_i);
-				queue_change_elem(w->tasks, i, task_tmp);
-			}
-		}
-	}
+	if ( sub_result < 0 )
+		return_result = 1;
+	else if ( sub_result == 0 )
+		return_result = 0;
+	else
+		return_result = -1;
+	
+	return return_result;
 }
 
 /**
  * @brief Sorts tasks in descending order.
  *
- * @param w Target workload.
+ * @param elem1 Target task.
+ * @param elem2 Target task.
+ * 
+ * @returns 1 If first task's workload is greater than second. 0 If both have the same value. -1 If first task's workload is lesser than second
  */
-static void workload_descending(struct workload *w)
+static int workload_descending(task_tt elem1, task_tt elem2)
 {
-	/* Sanity check. */
-	assert(w != NULL);
+	int sub_result = task_workload(elem1) - task_workload(elem2);
+	int return_result = 0;
 
-	for (int i = 0; i < w->ntasks; i++)
-	{
-		for (int j = 0; j < w->ntasks; j++)
-		{
-			task_tt task_i = queue_peek(workload_tasks(w), i);
-			task_tt task_j = queue_peek(workload_tasks(w), j);
-			if (task_workload(task_j) > task_workload(task_i))
-			{
-				task_tt task_tmp = NULL;
+	if ( sub_result > 0 )
+		return_result = 1;
+	else if ( sub_result == 0 )
+		return_result = 0;
+	else
+		return_result = -1;
+	
+	return return_result;
+}
 
-				task_tmp = task_j;
-				queue_change_elem(w->tasks, j, task_i);
-				queue_change_elem(w->tasks, i, task_tmp);
-			}
-		}
-	}
+/**
+ * @brief Sorts tasks in ascending order based in tasks arrival time.
+ *
+ * @param elem1 Target task.
+ * @param elem2 Target task.
+ * 
+ * @returns 1 If first task's arrival_time is lesser than second. 0 If both have the same value. -1 If first task's arrival_time is greater than second
+ */
+static int workload_sort_arrival(task_tt elem1, task_tt elem2)
+{
+	int sub_result = task_arrivaltime(elem1) - task_arrivaltime(elem2);
+	int return_result = 0;
+
+	if ( sub_result < 0 )
+		return_result = 1;
+	else if ( sub_result == 0 )
+		return_result = 0;
+	else
+		return_result = -1;
+	
+	return return_result;
+}
+
+/**
+ * @brief Sorts tasks in ascending order based in tasks remaining workload.
+ *
+ * @param elem1 Target task.
+ * @param elem2 Target task.
+ * 
+ * @returns 1 If first task's remaining_workload is lesser than second. 0 If both have the same value. -1 If first task's remaining_workload is greater than second
+ */
+static int workload_sort_remainingwork(task_tt elem1, task_tt elem2)
+{
+	int sub_result = task_work_left(elem1) - task_work_left(elem2);
+	int return_result = 0;
+
+	if ( sub_result < 0 )
+		return_result = 1;
+	else if ( sub_result == 0 )
+		return_result = 0;
+	else
+		return_result = -1;
+	
+	return return_result;
 }
 
 /**
@@ -269,62 +307,72 @@ static void workload_shuffle(struct workload *w)
 	}
 }
 
-/**
- * @brief Sorts tasks in ascending order based in tasks arrival time.
- *
- * @param w Target workload.
- */
-static void workload_sort_arrival(struct workload *w)
+static void swap(struct task **tasks, int i, int j)
 {
-	/* Sanity check. */
-	assert(w != NULL);
+    struct task *temp = tasks[i];
+	tasks[i] = tasks[j];
+	tasks[j] = temp;
+}
 
-	for (int i = 0; i < w->ntasks; i++)
+static int partition(struct task **tasks, int low, int high, FUNC_PTR compare)
+{
+	task_tt pivot = tasks[high];
+	int i = low;
+
+	for ( int j = low; j < high; j++ )
 	{
-		for (int j = 0; j < w->ntasks; j++)
+		if ( (compare(tasks[j], pivot) == 1) || ( (compare(tasks[j], pivot) == 0) && task_gettsid(tasks[j]) < task_gettsid(pivot)) ) 
 		{
-			task_tt task_i = queue_peek(workload_tasks(w), i);
-			task_tt task_j = queue_peek(workload_tasks(w), j);
-			if (task_arrivaltime(task_j) > task_arrivaltime(task_i))
-			{
-				task_tt task_tmp = NULL;
-
-				task_tmp = task_j;
-				queue_change_elem(w->tasks, j, task_i);
-				queue_change_elem(w->tasks, i, task_tmp);
-			}
+			swap(tasks, i, j);
+			i++;
 		}
 	}
+	swap(tasks, i, high);
+	return i;
+}
+
+static void quickSort(struct task **tasks, int low, int high, FUNC_PTR compare)
+{
+	/* Sanity check. */
+	assert(tasks != NULL);
+	if ( low < high )
+	{
+		int pivot = partition(tasks, low, high, compare);
+
+		quickSort(tasks, low, pivot - 1, compare);
+		quickSort(tasks, pivot + 1, high, compare);
+	}	
+}
+
+
+static void sort_tasks(struct task **tasks, int num_tasks, FUNC_PTR compare)
+{
+	/* Sanity check. */
+	assert(tasks != NULL);
+	quickSort(tasks, 0, num_tasks - 1, compare);
 }
 
 /**
- * @brief Sorts tasks in ascending order based in tasks remaining workload.
- *
- * @param w Target workload.
+ * @brief Transforms a queue into an array. Used in quickSorting.
+ * 
+ * @param to_transform Target queue.
+ * 
+ * @returns Queue's transformation. 
  */
-static void workload_sort_remainingwork(struct workload *w)
+static struct task** generate_array(struct queue *to_transform)
 {
 	/* Sanity check. */
-	assert(w != NULL);
-
-	for (int i = 0; i < queue_size(workload_arrtasks(w)); i++)
+	assert(to_transform != NULL);
+	int q_size = queue_size(to_transform);
+	struct task **tasks = (struct task**) malloc(sizeof(struct task*) * q_size);
+	for ( int i = 0; i < q_size; i++ )
 	{
-		for (int j = 0; j < queue_size(workload_arrtasks(w)); j++)
-		{
-			task_tt task_i = queue_peek(workload_arrtasks(w), i);
-			task_tt task_j = queue_peek(workload_arrtasks(w), j);
-			if (task_work_left(task_j) > task_work_left(task_i))
-			{
-				task_tt task_tmp = NULL;
-
-				task_tmp = task_j;
-				queue_change_elem(w->arrived_tasks, j, task_i);
-				queue_change_elem(w->arrived_tasks, i, task_tmp);
-			}
-		}
+		tasks[i] = queue_remove(to_transform);
 	}
-	
+
+	return tasks;
 }
+
 
 /**
  * @brief Sorts tasks.
@@ -337,17 +385,28 @@ void workload_sort(struct workload *w, enum workload_sorting sorting)
 	/* Sanity check. */
 	assert(w != NULL);
 
+	FUNC_PTR compare;
+	struct task **tasks = NULL;
+	struct queue *queue = NULL;
+	int num_elems = 0;
+
 	/* Sort workload. */
 	switch(sorting)
 	{
 		/* Sort in ascending order. */
 		case WORKLOAD_ASCENDING:
-			workload_ascending(w);
+			compare = workload_ascending;
+			queue = workload_tasks(w);
+			num_elems = queue_size(queue);
+			tasks = generate_array(queue);
 			break;
 
 		/* Sort in descending order. */
 		case WORKLOAD_DESCENDING:
-			workload_descending(w);
+			compare = workload_descending;
+			queue = workload_tasks(w);
+			num_elems = queue_size(queue);
+			tasks = generate_array(queue);
 			break;
 
 		/* Shuffle workload. */
@@ -357,12 +416,28 @@ void workload_sort(struct workload *w, enum workload_sorting sorting)
 		
 		/* Sort based in workload arrival time. */
 		case WORKLOAD_ARRIVAL:
-			workload_sort_arrival(w);
+			compare = workload_sort_arrival;
+			queue = workload_tasks(w);
+			num_elems = queue_size(queue);
+			tasks = generate_array(queue);
 			break;
 		
 		/* Sort based in remaining workload. */
 		case WORKLOAD_REMAINING_WORK:
-			workload_sort_remainingwork(w);
+			compare = workload_sort_remainingwork;
+			for ( unsigned long int i = 0; i < array_size(workload_arrtasks(w)); i++ )
+			{
+				queue = array_get(workload_arrtasks(w), i);
+				int num_elems = queue_size(queue);
+				tasks = generate_array(queue);
+				sort_tasks(tasks, num_elems, compare);
+
+				for ( int j = 0; j < num_elems; j++ )
+					queue_insert(queue, tasks[j]);
+
+				free(tasks);
+			}
+			tasks = NULL;
 			break;
 
 		/* Should not happen. */
@@ -370,6 +445,14 @@ void workload_sort(struct workload *w, enum workload_sorting sorting)
 			assert(0);
 			break;
 	}
+
+	if ( tasks != NULL )
+	{
+		sort_tasks(tasks, num_elems, compare);
+		for ( int i = 0; i < num_elems; i++ )
+			queue_insert(queue, tasks[i]);
+	}
+	free(tasks);
 }
 /**
  * @brief Computes the task sorting map of a workload.
@@ -430,11 +513,11 @@ void workload_write(FILE *outfile, struct workload *w)
 	{
 		task_tt ts = queue_peek(workload_tasks(w), i);
 		array_tt memacc = task_memacc(ts);
-		fprintf(outfile, "%d %d %d ", task_realid(ts), task_workload(ts), task_arrivaltime(ts));
-		for ( int j = 0; j < task_workload(ts); j++ )
+		fprintf(outfile, "%d %lu %d ", task_realid(ts), task_workload(ts), task_arrivaltime(ts));
+		for ( unsigned long int j = 0; j < task_workload(ts); j++ )
 		{
-			int *elem = array_get(memacc, j);
-			fprintf(outfile, "%d ", *elem);
+			unsigned long int elem = (mem_virtual_addr(array_get(memacc, j)) * PAGE_SIZE) + mem_addr_offset(array_get(memacc, j));
+			fprintf(outfile, "%lu ", elem);
 		}
 		fprintf(outfile, "\n");
 		free(memacc);
@@ -445,10 +528,11 @@ void workload_write(FILE *outfile, struct workload *w)
  * @brief Reads a workload from a file.
  *
  * @param infile Input file.
+ * @param ncores Total number of working cores in Simulation. 
  *
  * @returns A workload.
  */
-struct workload *workload_read(FILE *infile)
+struct workload *workload_read(FILE *infile, int ncores)
 {
 	int ntasks;         /**< Number of tasks. */
 	struct workload *w; /**< Workload.        */
@@ -459,26 +543,31 @@ struct workload *workload_read(FILE *infile)
 	assert(fscanf(infile, "%d\n", &ntasks) == 1);
 
 	w = smalloc(sizeof(struct workload));
+	w->all_tasks = array_create(ntasks);
 	w->tasks = queue_create();
-	w->arrived_tasks = queue_create();
+	w->all_arrived_tasks = array_create(ncores + 2);
+
+	// Adding a queue into all_arrived_tasks
+	for ( unsigned long int i = 0; i < array_size(w->all_arrived_tasks); i++ )
+		array_set(w->all_arrived_tasks, i, queue_create());
 	w->finished_tasks = queue_create();
 	w->ntasks = ntasks;
 
 	/* Write workload to file. */
 	int real_id   = 0,
-		workload  = 0, 
-		arrivtime = 0,
-		addr      = 0;
-
+		arrivtime = 0;
+	unsigned long int addr      = 0,
+	                  workload  = 0;
 	for (int i = 0; i < ntasks; i++) {
 		assert(fscanf(infile, "%d", &real_id) == 1);
-		assert(fscanf(infile, "%d", &workload) == 1);
+		assert(fscanf(infile, "%lu", &workload) == 1);
 		assert(fscanf(infile, "%d\n", &arrivtime) == 1);
+
 		array_tt t_addr = array_create(workload);
 
-		for ( int j = 0; j < workload; j++ )
+		for ( unsigned long int j = 0; j < workload; j++ )
 		{
-			assert(fscanf(infile, "%d\n", &addr) == 1);
+			assert(fscanf(infile, "%lu\n", &addr) == 1);
 			struct mem *m = mem_create(addr);
 			array_set(t_addr, j, m);
 
@@ -486,7 +575,7 @@ struct workload *workload_read(FILE *infile)
 		task_tt ts = task_create(real_id, workload, arrivtime);
 		task_set_memacc(ts, t_addr);
 
-		workload_set_task(w, ts);
+		workload_set_task(w, i, ts);
 	}
 
 	return (w);
@@ -523,18 +612,36 @@ queue_tt workload_tasks(const struct workload *w)
 }
 
 /**
- * @brief Returns the queue of arrived tasks of a given workload.
- *
- * @param w Target workload.
+ * @brief Returns a task at specified position (id).
  * 
- * @returns The queue of arrived tasks of a given workload.
+ * @param w  Target workload.
+ * @param id Desired task.
+ * 
+ * @returns Corresponding tas.
  */
-queue_tt workload_arrtasks(const struct workload *w)
+task_tt workload_find_task(const struct workload *w, int id)
 {
 	/* Sanity check. */
 	assert(w != NULL);
+	assert(id >= 0);
+	assert(id < workload_ntasks(w));
 
-	return(w->arrived_tasks);
+	return array_get(w->all_tasks, id);
+}
+
+/**
+ * @brief Returns the array of arrived tasks of a given workload.
+ *
+ * @param w   Target workload.
+ * 
+ * @returns The array of arrived tasks of a given workload.
+ */
+array_tt workload_arrtasks(const struct workload *w)
+{
+	/* Sanity check. */
+	assert(w != NULL);   
+
+	return(w->all_arrived_tasks);
 }
 
 /**
@@ -556,14 +663,16 @@ queue_tt workload_fintasks(const struct workload *w)
  * @brief Adds new task into tasks array.
  *
  * @param w    Target workload.
+ * @param idx  Index where task will stay at "all_tasks".
  * @param task New task.
  */
-void workload_set_task(struct workload *w, struct task *t)
+void workload_set_task(struct workload *w, int idx, struct task *t)
 {
 	/* Sanity check. */
 	assert(w != NULL);
 	assert(t != NULL);
 
+	array_set(w->all_tasks, idx, t);
 	queue_insert(w->tasks, t);
 }
 
@@ -572,14 +681,17 @@ void workload_set_task(struct workload *w, struct task *t)
  *
  * @param w    Target workload.
  * @param task New task.
+ * @param pos  Which queue to add. 
  */
-void workload_set_arrtask(struct workload *w, struct task *t)
+void workload_set_arrtask(struct workload *w, struct task *t, int pos)
 {
 	/* Sanity check. */
-	assert(w != NULL);
-	assert(t != NULL);
+	assert(w != NULL);   
+	assert(t != NULL);   
+	assert(pos >= 0);
 
-	queue_insert(w->arrived_tasks, t);
+	queue_tt queue = (queue_tt) array_get(w->all_arrived_tasks, pos);
+	queue_insert(queue, t);
 }
 
 /**
@@ -597,9 +709,9 @@ void workload_set_fintask(struct workload *w, struct task *t)
 	queue_insert(w->finished_tasks, t);
 }
 
-/**
+/**   
  * @brief Checks if there are tasks that have arrived at g_i moment. 
- *        If positive, add them into arrived_tasks queue.
+ *        If positive, add them into all_arrived_tasks queue.
  * 
  * @param w   Target workload.
  * @param g_i Global iterator.
@@ -612,8 +724,15 @@ void workload_checktasks(struct workload *w, int g_i)
 	for ( int i = 0; i < queue_size(w->tasks); i++ )
 	{
 		task_tt curr_task = queue_peek(w->tasks, i);
-		/* Tasks are sorted in arrival time, so if one haven't arrived, all after it haven't also. */
-		if ( task_arrivaltime(curr_task) <= g_i ) workload_set_arrtask(w, queue_remove(w->tasks));
+		/* 
+			Tasks are sorted in arrival time, so if one haven't arrived, all after it haven't also.
+			Newly arrived tasks will be allocated to the last queue in all_arrived_tasks.
+		 */
+		if ( task_arrivaltime(curr_task) <= g_i )
+		{
+			workload_set_arrtask(w, queue_remove(w->tasks), array_size(w->all_arrived_tasks) - 1);
+			i --;
+		} 
 		else break;
 	}
 }
@@ -621,20 +740,24 @@ void workload_checktasks(struct workload *w, int g_i)
 /**
  * @brief Returns the current total number of tasks left in our simulation.
  * 
- * @param w Target workload.
+ * @param w   Target workload.
  * 
  * @returns Current total number of tasks left in our simulation.
 */
 int workload_totaltasks(const struct workload *w)
 {
 	/* Sanity check. */
-	assert(w != NULL);
+	assert(w != NULL);   
 
-	return (queue_size(w->tasks) + queue_size(w->arrived_tasks));	
+	int sum = 0;
+	for ( unsigned long int i = 0; i < array_size(w->all_arrived_tasks); i++ ) 
+		sum += queue_size((queue_tt) array_get(w->all_arrived_tasks, i));
+
+	return (queue_size(w->tasks) + sum);
 }
 
 /**
- * @brief Returns the number of tasks tha are currently (based on arrival time) in workload.
+ * @brief Returns the number of tasks that are currently (based on arrival time) in workload.
  *
  * @param w Target workload.
  *
@@ -643,9 +766,13 @@ int workload_totaltasks(const struct workload *w)
 int workload_currtasks(const struct workload *w)
 {
 	/* Sanity check. */
-	assert(w != NULL);
+	assert(w != NULL);   
 
-	return (queue_size(w->arrived_tasks));
+	int sum = 0;
+	for ( unsigned long int i = 0; i < array_size(w->all_arrived_tasks); i++ ) 
+		sum += queue_size((queue_tt) array_get(w->all_arrived_tasks, i));
+
+	return (sum);
 }
 
 /**
