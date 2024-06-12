@@ -25,6 +25,7 @@
 	#include <stdio.h>
 
 	#include "mylib/queue.h"
+	#include "mylib/array.h"
 	#include "statistics.h"
 	#include "task.h"
 
@@ -69,13 +70,14 @@
 	extern void workload_sort(workload_tt, enum workload_sorting);
 	extern int *workload_sortmap(workload_tt);
 	extern void workload_write(FILE *, workload_tt);
-	extern workload_tt workload_read(FILE *);
+	extern workload_tt workload_read(FILE *, int);
 	
-	extern void workload_set_task(workload_tt, task_tt);
+	extern void workload_set_task(workload_tt, int, task_tt);
 	extern queue_tt workload_tasks(const_workload_tt);
+	extern task_tt workload_find_task(const_workload_tt, int);
 
-	extern void workload_set_arrtask(workload_tt, task_tt);
-	extern queue_tt workload_arrtasks(const_workload_tt);
+	extern void workload_set_arrtask(workload_tt, task_tt, int);
+	extern array_tt workload_arrtasks(const_workload_tt);
 	extern void workload_checktasks(workload_tt, int);
 
 	extern void workload_set_fintask(workload_tt, task_tt);

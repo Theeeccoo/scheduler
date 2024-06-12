@@ -7,10 +7,11 @@
 
 #include <mylib/util.h>
 
-#include <statistics.h>
 #include <core.h>
-#include <scheduler.h>
+#include <mmu.h>
 #include <process.h>
+#include <scheduler.h>
+#include <statistics.h>
 #include <workload.h>
 
 /**
@@ -18,15 +19,16 @@
  */
 static struct
 {
-	workload_tt workload;              /**< Input workload.              */
-    array_tt cores;                    /**< Cores to process tasks.      */
-	const struct scheduler *scheduler; /**< Loop scheduling strategy.    */
-	const struct processer *processer; /**< Core processing strategy.    */
-	int winsize;                       /**< Memory accesses window size. */
-	int batchsize;                     /**< Scheduling batch size.       */
-	int seed;                          /**< Seed.                        */
-	void (*kernel)(workload_tt);       /**< Application kernel.          */
-} args = { NULL, NULL, NULL, NULL, 0, 1, 0, NULL };
+	workload_tt workload;              /**< Input workload.                            */
+    array_tt cores;                    /**< Cores to process tasks.                    */
+	const struct scheduler *scheduler; /**< Loop scheduling strategy.                  */
+	const struct processer *processer; /**< Core processing strategy.                  */
+	int optimize;                      /**< If scheduling optimization should be done. */
+	int winsize;                       /**< Memory accesses window size.               */
+	int batchsize;                     /**< Scheduling batch size.                     */
+	int seed;                          /**< Seed.                                      */
+	void (*kernel)(workload_tt);       /**< Application kernel.                        */
+} args = { NULL, NULL, NULL, NULL, -1, 0, 1, 0, NULL };
 
 
 /*============================================================================*
@@ -115,6 +117,7 @@ static void usage(void)
 	printf("  --ncores <number>       Number of working cores.\n");
 	printf("  --winsize <number>      Memory Accesses Window size\n");
 	printf("  --seed <number>         Seed value.\n");
+	printf("  --optimize <number>     0 = No. 1 = Yes\n");
 	printf("  --help                  Display this message.\n");
 	printf("Schedulers:\n");
 	printf("  fcfs               First-Come, First-Served Scheduling.\n");
@@ -129,10 +132,11 @@ static void usage(void)
  * @brief Gets workload.
  *
  * @param filename Input workload filename.
+ * @param ncores   Number of working cores.
  *
  * @returns A workload.
  */
-static workload_tt get_workload(const char *filename)
+static workload_tt get_workload(const char *filename, int ncores)
 {
 	FILE *input;   /* Input workload file. */
 	workload_tt w; /* Workload.            */
@@ -141,7 +145,7 @@ static workload_tt get_workload(const char *filename)
 	if (input == NULL)
 		error("cannot open input workload file");
 
-	w = workload_read(input);
+	w = workload_read(input, ncores);
 
 	fclose(input);
 
@@ -174,16 +178,20 @@ static array_tt get_cores(const char *filename, int ncores)
 	assert(ncores <= read_cores);
 
 	cores = array_create(ncores);
-
+	
 	for (int i = 0; i < ncores; i++)
 	{
-        core_tt c;      /** Core. */
+        core_tt c;      /** Core.                       */
         int capacity;   /** Core's processing capacity. */
-		int cache_size; /** Cache size. */
+		int cache_line; /** Number of cache lines.      */
+		int cache_ways; /** Number of cache ways.       */
+		int num_blocks; /** Number of blocks per way    */
 		
 		assert(fscanf(file, "%d", &capacity) == 1);
-		assert(fscanf(file, "%d\n", &cache_size) == 1);
-		c = core_create(capacity, cache_size);
+		assert(fscanf(file, "%d", &cache_line) == 1);
+		assert(fscanf(file, "%d", &cache_ways) == 1);
+		assert(fscanf(file, "%d\n", &num_blocks) == 1);
+		c = core_create(capacity, cache_line, cache_ways, num_blocks);
 		array_set(cores, i, c);
 	}
 
@@ -226,17 +234,21 @@ static void (*get_kernel(const char *kernelname))(workload_tt)
 static void checkargs(const char *wfilename, const char *afilename, const char *kernelname, int has_winsize)
 {
 	if (afilename == NULL)
-		error("missing architecture file");
+		error("missing architecture file.");
 	if (wfilename == NULL)
-		error("missing input workload file");
+		error("missing input workload file.");
 	if (kernelname == NULL)
-		error("missing kernel name");
+		error("missing kernel name.");
 	if (args.processer == NULL)
 		error("missing cores' processing strategy.");
 	if (args.scheduler == NULL)
-		error("missing loop scheduling strategy");
+		error("missing loop scheduling strategy.");
+	if (args.optimize < 0 || args.optimize > 3)
+		error("missing optimization decision.");
 	if (!has_winsize)
 		error("missing window size.");
+	if (args.winsize > QUANTUM)
+		error("window size must be equal or smaller than QUANTUM.");
 }
 
 /**
@@ -273,7 +285,7 @@ static void readargs(int argc, const char **argv)
 		} else if (!strcmp(argv[i], "--batchsize"))
 			args.batchsize = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "--input"))
-			wfilename = argv[++i];
+			wfilename = argv[++i]; 
 		else if (!strcmp(argv[i], "--kernel"))
 			kernelname = argv[++i];
 		else if (!strcmp(argv[i], "--ncores"))
@@ -285,6 +297,8 @@ static void readargs(int argc, const char **argv)
 		}
 		else if (!strcmp(argv[i], "--seed"))
 			args.seed = atoi(argv[++i]);
+		else if (!strcmp(argv[i], "--optimize"))
+			args.optimize = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "--help"))
 			usage();
 		else
@@ -296,20 +310,21 @@ static void readargs(int argc, const char **argv)
 			else if (!strcmp(argv[i], "sca"))
 				args.scheduler = sched_sca;
 			else
-				error("unsupported scheduling strategy");
+				error("invalid option or unsupported scheduling strategy");
 
 		}
 	}
 
+
 	checkargs(wfilename, afilename, kernelname, has_winsize);
 
-	args.workload = get_workload(wfilename);
+	args.workload = get_workload(wfilename, ncores);
     args.cores = get_cores(afilename, ncores);
 	args.kernel = get_kernel(kernelname);
 }
 
 /*============================================================================*
- * LOOP SCHEDULER SIMULATOR                                                   *
+ * TASK SCHEDULER SIMULATOR                                                   *
  *============================================================================*/
 
 /**
@@ -325,10 +340,10 @@ int main(int argc, const char** argv)
 
 	workload_sort(args.workload, WORKLOAD_ARRIVAL);
 
-	simsched(args.workload, args.cores, args.scheduler, args.processer, args.batchsize, args.winsize);
+	simsched(args.workload, args.cores, args.scheduler, args.processer, args.batchsize, args.winsize, args.optimize);
 
 	/* House keeping, */
-	for (int i = 0; i < array_size(args.cores); i++)
+	for ( unsigned long int i = 0; i < array_size(args.cores); i++)
 	{
 		core_tt c = array_get(args.cores, i);
 		core_destroy(c);

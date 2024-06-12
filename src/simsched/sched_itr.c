@@ -10,8 +10,8 @@
  */
 struct sched_itr
 {
-    int twork;  /**< Total workload assigned.                    */
-    int ntasks; /**< Total number of tasks assgnied at that itr. */
+    unsigned long int twork; /**< Total workload assigned.                    */
+    int ntasks;              /**< Total number of tasks assgnied at that itr. */
 };
 
 /**
@@ -21,12 +21,11 @@ struct sched_itr
  * @param ntasks Total number of tasks assigned to a core in the same iteration.
  *
 */
-sched_itr_tt scheditr_create(int twork, int ntasks)
+sched_itr_tt scheditr_create(unsigned long int twork, int ntasks)
 {
 	struct sched_itr *si;
 
 	/* Sanity check. */
-	assert(twork >= 0);
 	assert(ntasks >= 0);
 
 
@@ -44,7 +43,7 @@ sched_itr_tt scheditr_create(int twork, int ntasks)
  * 
  * @returns Scheduling iteration's total work.
 */
-int scheditr_twork(const struct sched_itr *si)
+unsigned long int scheditr_twork(const struct sched_itr *si)
 {
     /* Sanity check. */
     assert(si != NULL);

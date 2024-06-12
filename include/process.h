@@ -4,14 +4,17 @@
     #include <stdbool.h>
     #include <mylib/array.h>
 
-    #include "workload.h"
     #include "core.h"
+    #include "ram.h"
+    #include "workload.h"
 
     /**
-	 * @brief Scheduler penalties.
+	 * @brief Scheduler definitions.
 	 */
 	/**@{*/
-	#define MISS_PENALTY  4 /**< Cache miss penalty (cycles).  */
+    #define QUANTUM              10000 /**< Round-Robin Quantum (cycles). */
+	#define MISS_PENALTY            50 /**< Cache miss penalty (cycles).  */
+    #define PAGE_FAULT_PENALTY  500000 /**< Page fault penalty (cycles).  */
 	/**@}*/
 
     /**
@@ -19,9 +22,9 @@
     */
     struct processer
     {
-        void (*init)(workload_tt, array_tt, int*); /**< Initialize processer. */
-        void (*process)(void);                     /**< Process.              */
-        void (*end)(void);                         /**< End processer.        */
+        void (*init)(workload_tt, array_tt, int*, RAM_tt); /**< Initialize processer. */
+        void (*process)(void);                             /**< Process.              */
+        void (*end)(void);                                 /**< End processer.        */
     };
 
 

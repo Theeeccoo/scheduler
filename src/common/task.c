@@ -24,33 +24,236 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <math.h>
 
 #include <task.h>
 #include <mylib/util.h>
 #include <mem.h>
+#include <math.h>
+
+/*====================================================================*
+ * PAGE TABLE LINE                                                    *
+ *====================================================================*/
+
+/**
+ * @brief Page Table's line.
+ */
+struct page_table_line
+{
+	bool valid;    /**< Valid bit.                            */
+	int  frame_id; /**< Which frame this line is assigned to. */
+};
+
+/**
+ * @brief Creates a new instance of a page_table_line.
+ *  
+ * @returns New instance of page_table_line.
+ */
+static inline struct page_table_line* page_table_line_create()
+{
+	struct page_table_line *pl = smalloc(sizeof(struct page_table_line));
+	pl->valid = false;
+	pl->frame_id = -1;
+	return (pl);
+}
+
+/**
+ * @brief Checks if a page_table_line is valid.
+ * 
+ * @param pl Target page_table_line.
+ * 
+ * @returns True if valid. False otherwise.
+ */
+static inline bool page_check_table_line_valid(const struct page_table_line *pl)
+{
+	/* Sanity check. */
+	assert(pl != NULL);
+	return (pl->valid);
+}
+
+/**
+ * @brief Sets page_table_line's valid bit to true.
+ * 
+ * @param pl Target page_table_line.
+ */
+static inline void page_valid_table_line(struct page_table_line *pl)
+{
+	/* Sanity check. */
+	assert(pl != NULL);
+	pl->valid = true;
+}
+
+/**
+ * @brief Sets page_table_line's valid bit to false.
+ * 
+ * @param pl Target page_table_line.
+ */
+static inline void page_invalid_table_line(struct page_table_line *pl)
+{
+	/* Sanity check. */
+	assert(pl != NULL);
+	pl->valid = false;
+}
+
+
+/**
+ * @brief Returns the frame id of a page_table_line. If page is invalid, assert will break execution.
+ * 
+ * @param pl Target page_table_line.
+ * 
+ * @returns Frame id stored at page_table_line. 
+ */
+static inline int page_table_line_frameid(const struct page_table_line *pl)
+{
+	/* Sanity check. */
+	assert(pl != NULL);
+	assert(pl->valid);
+	return (pl->frame_id);
+}
+
+/**
+ * @brief Sets the frame id of a page_table_line.
+ * 
+ * @param pl       Target page_table_line.
+ * @param frame_id Desired frame_id.
+ */
+static inline void page_set_table_line_frameid(struct page_table_line *pl, int frame_id)
+{
+	/* Sanity check. */
+	assert(pl != NULL);
+	assert(frame_id >= 0);
+	pl->frame_id = frame_id;
+}
+
+/**
+ * @brief Destroys a page_table_line instance
+ * 
+ * @param pl Target page_table_line.
+ */
+static inline void page_table_line_destroy(struct page_table_line *pl)
+{
+	/* Sanity check. */
+	assert(pl != NULL);
+	free(pl);
+}
+
+/*====================================================================*
+ * PAGE TABLE                                                         *
+ *====================================================================*/
+
+/**
+ * @brief Page Table.
+ */
+struct page_table
+{
+	int task_id;                         /**< Which task is this page table. */
+	int num_lines;                       /**< Number of lines.               */
+	struct page_table_line** page_lines; /**< Page lines.                    */
+};
+
+/**
+ * @brief Creates a new instance of a page_table.
+ * 
+ * @param task_id  Task's id of target task.
+ * @param mem_size Number of task's memory accesses.
+ * 
+ * @returns New instance of page_table.
+ */
+static inline struct page_table *page_table_create(int task_id, unsigned long int mem_size)
+{
+	struct page_table *pt;
+	/* Sanity check. */
+	assert(task_id >= 0);
+	int num_lines = (int) (ceil(mem_size / PAGE_SIZE) + 1);
+
+	pt = smalloc(sizeof(struct page_table));
+	pt->task_id = task_id;
+	pt->num_lines = num_lines;
+
+	pt->page_lines = smalloc(sizeof(struct page_table_line*) * num_lines);
+	for ( int i = 0; i < num_lines; i++ )
+		pt->page_lines[i] = page_table_line_create();
+	
+	return (pt);
+}
+
+/**
+ * @brief Returns page_table_line at specified line.
+ * 
+ * @param pt  Target page table
+ * @param idx Desired line.
+ * 
+ * @returns Page_table line.
+ */
+static inline struct page_table_line* page_table_line_at(const struct page_table *pt, int idx)
+{
+	/* Sanity check. */
+	assert(pt != NULL);
+	assert(idx <= pt->num_lines);
+	return (pt->page_lines[idx]);
+}
+
+/**
+ * @brief Returns page_table's number of lines.
+ * 
+ * @param ts Target task.
+ * 
+ * @returns Page_table's number of lines.
+ */
+static inline int page_table_num_lines(const struct page_table *pt)
+{
+	/* Sanity check. */
+	assert(pt != NULL);
+	return (pt->num_lines);
+}
+
+/**
+ * @brief Destroys a page_table instance
+ * 
+ * @param pt Target page_table.
+ */
+static inline void page_table_destroy(struct page_table *pt)
+{
+	/* Sanity check. */
+	assert(pt != NULL);
+	for ( int i = 0; i < pt->num_lines; i++ ) page_table_line_destroy(pt->page_lines[i]);
+	free(pt->page_lines);
+	free(pt);
+}
+
+/*====================================================================*
+ * TASK                                                               *
+ *====================================================================*/
 
 /**
  * @brief Task.
  */
 struct task
 {
-	int tsid;           /**< Task identification number.             */
-	int real_id;        /**< Real id assigned when workload created. */
-	int arrival_time;   /**< Which iteration current task arrived.   */
-	int waiting_time;   /**< Waiting time for completion of a task.  */
-	int work;           /**< Total workload of a task.               */
-	int work_processed; /**< Total workload processed.               */ 
+	int tsid;                          /**< Task identification number.             */
+	int real_id;                       /**< Real id assigned when workload created. */
+	int arrival_time;                  /**< Which iteration current task arrived.   */
+	int waiting_time;                  /**< Waiting time for completion of a task.  */
+	unsigned long int work;            /**< Total workload of a task.               */
+	unsigned long int work_processed;  /**< Total workload processed.               */ 
+ 
+	int core_assigned;                 /**< CORE ID where task was assigned (sca).  */
 
-	int core_assigned;  /**< CORE ID where task was assigned (sca).  */
+	unsigned long int page_hits;       /**< Number of page hits.                    */
+	unsigned long int page_faults;     /**< Number of page faults.                  */
+	unsigned long int hits;			   /**< Number of hits.                         */
+	unsigned long int misses;          /**< Number of misses.                       */
 
-	int hits;			/**< Number of hits.                         */
-	int misses;         /**< Number of misses.                       */
+	unsigned long int* lines_accessed; /**< Which cache lines were accessed p/task. */   
+	unsigned long int* pages_acessed;  /**< Which page lines were accessed p/task.  */    
+	int lineptr;                       /**< Points to the last line accessed.       */
 
-	array_tt memacc;    /**< Tasks' memory accesses.                 */
-	int memptr;         /**< Points to the last memory accessed.     */
-
-	int e_moment;       /**< Moment when task (r)entered in a core.  */
-	int l_moment;       /**< Moment when task left from a core.      */
+	struct page_table* p_table;        /**< Task's page table.                      */
+	array_tt memacc;                   /**< Tasks' memory accesses.                 */
+	unsigned long int memptr;          /**< Points to the last memory accessed.     */
+ 
+	int e_moment;                      /**< Moment when task (r)entered in a core.  */
+	int l_moment;                      /**< Moment when task left from a core.      */
 };
 
 /**
@@ -67,12 +270,12 @@ static int next_tsid = 0;
  *
  * @returns A task.
  */
-struct task *task_create(int real_id, int work, int arrival)
+struct task *task_create(int real_id, unsigned long int work, int arrival)
 {
 	struct task *task;
 
 	/* Sanity check. */
-	assert(work >= 0);
+	assert(arrival >= 0);
 
 	task = smalloc(sizeof(struct task));
 
@@ -85,8 +288,21 @@ struct task *task_create(int real_id, int work, int arrival)
 	task->e_moment = 0;
 	task->l_moment = 0;
 	task->core_assigned = -1;
+	task->page_hits = 0;
+	task->page_faults = 0;
 	task->hits = 0;
 	task->misses = 0;
+
+	/* 
+		One might optimize this. It's needed, actually, only "WINSIZE" values at each iteration, 
+		so each iteration values at "lines_accessed" can be rewriten.
+	*/
+	task->lines_accessed = smalloc(sizeof(unsigned long int) * work);
+	task->pages_acessed = smalloc(sizeof(unsigned long int) * work);
+
+	task->p_table = page_table_create(task->tsid, work);
+	// Initializing. 
+	for ( unsigned long int i = 0; i < work; i++ ) task->lines_accessed[i] = -1;
 
 	task->memacc = array_create(work);
 	task->memptr = 0;
@@ -173,11 +389,10 @@ void task_set_waiting_time(struct task *ts, int waiting_time)
  * @param ts   Target task.
  * @param work How much task has processed.
  */
-void task_set_workprocess(struct task *ts, int work)
+void task_set_workprocess(struct task *ts, unsigned long int work)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
-	assert(work >= 0);
 
 	ts->work_processed = work;
 }
@@ -232,19 +447,38 @@ void task_set_lmoment(struct task *ts, int moment)
 /**
  * @brief Creates task's memory address that will be accessed.
  * 
- * @param ts  Target task. 
- * @param lim Upper limit of memory addresses. 
+ * @param ts   Target task. 
+ * @param lim  Upper limit of memory addresses. 
+ * @param hist Memory Acesses histogram.
 */
-void task_create_memacc(struct task *ts, int lim)
+void task_create_memacc(struct task *ts, histogram_tt hist)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
+	assert(hist != NULL);
+	int l = 0,
+		j = 0;
+	unsigned long int i = 0,
+        			  k = 0;
 
-	/* Storing randomly-generated task's memory acesses. Will contain size(task_workload) random "memory addresses" */
-	for ( int i = 0; i < ts->work; i++ )
+
+	/* Storing randomly-generated task's memory acesses. Will contain size(task_workload) following gaussian distribuition */
+	for ( l = 0; l < histogram_nclasses(hist); l++ )
 	{
-		struct mem *m = mem_create((rand() % lim)); /* Generating the memory accesses. Possible addresses: [0 - lim) */
-		array_set(ts->memacc, i, m);
+		int n = floor(histogram_class(hist, l) * ts->work);
+		for ( j = 0; j < n; j++ )
+		{
+			/* Generating the memory accesses. */
+			struct mem *m = mem_create(l);
+			array_set(ts->memacc, k++, m);
+		}
+	}
+	i = k;
+	for ( /* */; i < ts->work; i++ )
+	{
+		j = rand()%histogram_nclasses(hist);
+		struct mem *m = mem_create((i));
+		array_set(ts->memacc, k++, m);
 	}
 }
 
@@ -269,11 +503,10 @@ void task_set_memacc(struct task *ts, array_tt a)
  * @param t   Target task.
  * @param pos Position of last memory address accessed.
 */
-void task_set_memptr(struct task *ts, int pos)
+void task_set_memptr(struct task *ts, unsigned long int pos)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
-	assert(pos >= 0);
 	assert(pos <= task_workload(ts));
 
 	ts->memptr = pos;
@@ -317,7 +550,7 @@ int task_waiting_time(const struct task *ts)
  * 
  * @returns Workload of specified task.
  */
-int task_workload(const struct task *ts)
+unsigned long int task_workload(const struct task *ts)
 {
 	/* Sanity check. */
     assert(ts != NULL);
@@ -329,12 +562,12 @@ int task_workload(const struct task *ts)
  * @brief Assigns a new workload to given task.
  * 
  * @param ts Target task.
+ * @param w  Workload.
  */
-void task_set_workload(struct task *ts, int w)
+void task_set_workload(struct task *ts, unsigned long int w)
 {
 	/* Sanity check. */
     assert(ts != NULL);
-	assert(w >= 0);
 
 	ts->work = w;
 }
@@ -346,7 +579,7 @@ void task_set_workload(struct task *ts, int w)
  * 
  * @returns Total processed workload of specified task.
  */
-int task_work_processed(const struct task *ts)
+unsigned long int task_work_processed(const struct task *ts)
 {
 	/* Sanity check. */
     assert(ts != NULL);
@@ -361,12 +594,149 @@ int task_work_processed(const struct task *ts)
  * 
  * @returns How much work is left to be processed on specified task.
  */
-int task_work_left(const struct task *ts)
+unsigned long int task_work_left(const struct task *ts)
 {
 	/* Sanity check. */
     assert(ts != NULL);
 
     return(ts->work - ts->work_processed);
+}
+
+/**
+ * @brief Checks specified page_table_line's valid bit.
+ * 
+ * @param ts  Target task.
+ * @param idx Line's index.
+ * 
+ * @returns True if page_table_line is valid. False, otherwise.
+ */
+bool task_check_pt_line_valid(const struct task *ts, int idx)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	assert(idx >= 0);
+	return page_check_table_line_valid(page_table_line_at(ts->p_table, idx));
+}
+
+/**
+ * @brief Sets page_table_lines's valid bit to false.
+ * 
+ * @param ts  Target task.
+ * @param idx Line's index.
+ */
+void task_invalid_pt_line(struct task *ts, int idx)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	assert(idx >= 0);
+	page_invalid_table_line(page_table_line_at(ts->p_table, idx));
+}
+
+/**
+ * @brief Sets page_table_lines's valid bit to true.
+ * 
+ * @param ts  Target task.
+ * @param idx Line's index.
+ */
+void task_valid_pt_line(struct task *ts, int idx)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	assert(idx >= 0);
+	page_valid_table_line(page_table_line_at(ts->p_table, idx));
+}
+
+/**
+ * @brief Searchs for a page_table_line that is valid and is assigned with frame_idx.
+ * Returns page_table_line's id if found.
+ * 
+ * @param ts        Target task.
+ * @param frame_idx Desired frame id.
+ * 
+ * @returns Page_table_line's id if found. -1, otherwise.
+ */
+int task_find_pt_line_frame_id(const struct task *ts, int frame_idx)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	assert(frame_idx >= 0);
+
+	int num_lines = page_table_num_lines(ts->p_table);
+	for ( int i = 0; i < num_lines; i++ )
+	{
+		struct page_table_line *pl = page_table_line_at(ts->p_table, i);
+		if ( page_check_table_line_valid(pl) )
+		{
+			if ( page_table_line_frameid(pl) == frame_idx ) return i;
+		}
+
+	}
+	return -1;
+}
+
+/**
+ * @brief Returns the page_table_line of current task's mem_addr.
+ * 
+ * @param ts Target task.
+ * 
+ * @returns Page_table_line of current task's mem_addr.
+ */
+int task_find_pt_line_memptr(const struct task *ts)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+
+	struct mem *mem = array_get(ts->memacc, ts->memptr);
+	return (mem_virtual_addr(mem));
+}
+
+/**
+ * @brief Returns the frame_id of specified page_table_line.
+ * 
+ * @param ts Target task.
+ * @param id Desired line.
+ * 
+ * @returns Frame_id of specified page_table_line.
+ */
+int task_get_pt_line_frameid(const struct task *ts, int id)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	assert(id >= 0);
+	struct page_table_line *pl = page_table_line_at(ts->p_table, id);
+	return page_table_line_frameid(pl);		
+}
+
+/**
+ * @brief Sets the frame_id of specified page_table_line.
+ * 
+ * @param ts       Target task.
+ * @param id       Desired line.
+ * @param frame_id Desired frame_id.
+ */
+void task_set_pt_line_frameid(struct task *ts, int id, int frame_id)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	assert(id >= 0);
+	struct page_table_line *pl = page_table_line_at(ts->p_table, id);
+	page_set_table_line_frameid(pl, frame_id);		
+}
+
+
+/**
+ * @brief Returns Task's page_table's number of lines.
+ * 
+ * @param ts Target task.
+ * 
+ * @returns Page_table's number of lines.
+ */
+int task_pt_num_lines(const struct task *ts)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+
+	return page_table_num_lines(ts->p_table);
 }
 
 /**
@@ -385,18 +755,73 @@ array_tt task_memacc(const struct task *ts)
 }
 
 /**
+ * @brief Returns task's current memory_addr->cache_line mapping. i.e., Which cache sets tasks' addresses were assigned to.
+ * 
+ * @param ts Target task. 
+ * 
+ * @return Task's current memory_addr->cache_line mapping.
+*/
+unsigned long int* task_lineacc(const struct task *ts)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+
+	return (ts->lines_accessed);
+}
+
+/**
+ * @brief Returns task's current memory_addr->page_line mapping. i.e., Which page lines tasks' addresses were assigned to.
+ * 
+ * @param ts Target task. 
+ * 
+ * @return Task's current memory_addr->page_line mapping.
+*/
+unsigned long int* task_pageacc(const struct task *ts)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+
+	return (ts->pages_acessed);
+}
+
+/**
  * @brief Returns task's memory pointer.
  * 
  * @param ts Target task.
  * 
  * @returns Task's memory pointer.
 */
-int task_memptr(const struct task *ts)
+unsigned long int task_memptr(const struct task *ts)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
 
 	return (ts->memptr);
+}
+
+/**
+ * @brief Checks if task has accessed specified cache set in last WINSIZE accesses.
+ * 
+ * @param ts      Target task.
+ * @param set     Target set.
+ * @param winsize Winsize.
+ * 
+ * @returns True if has accessed. False, otherwise.
+ */
+bool task_accessed_set(const struct task *ts, unsigned long int set, int winsize)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	assert(winsize >= 0);
+
+	// Not processed yet.
+	if ( ts->memptr == 0 ) return false;
+
+	for ( int i = 0; i < winsize; i++ )
+	{
+		if ( ts->lines_accessed[(ts->lineptr - winsize + i)] == set ) return true;
+	}
+	return false;
 }
 
 /**
@@ -415,16 +840,66 @@ int task_gettsid(const struct task *ts)
 }
 
 /**
+ * @brief Sets the number of page hits that happened while processing.
+ * 
+ * @param ts    Target task.
+ * @param p_hit Number of hits.
+*/
+void task_set_page_hit(struct task *ts, unsigned long int p_hit)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	ts->page_hits = p_hit;
+}
+
+/**
+ * @brief Sets the number of page faults that happened while processing.
+ * 
+ * @param ts      Target task.
+ * @param p_fault Number of faults.
+*/
+void task_set_page_fault(struct task *ts, unsigned long int p_fault)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	ts->page_faults = p_fault;
+}
+
+/**
+ * @brief Gets the number of page hits that happened while processing.
+ * 
+ * @param ts Target task.
+*/
+unsigned long int task_page_hit(const struct task *ts)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	return (ts->page_hits);
+}
+
+/**
+ * @brief Gets the number of page faults that happened while processing.
+ * 
+ * @param ts Target task.
+*/
+unsigned long int task_page_fault(const struct task *ts)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	return (ts->page_faults);
+}
+
+
+/**
  * @brief Sets the number of cache hits that task had while processing.
  * 
  * @param ts  Target task.
  * @param hit Number of hits.
 */
-extern void task_set_hit(struct task *ts, int hit)
+void task_set_hit(struct task *ts, unsigned long int hit)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
-	assert(hit >= 0);
 
 	ts->hits = hit;
 }
@@ -435,7 +910,7 @@ extern void task_set_hit(struct task *ts, int hit)
  * @param ts   Target task.
  * @param miss Number of misses.
 */
-extern void task_set_miss(struct task *ts, int miss)
+void task_set_miss(struct task *ts, unsigned long int miss)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
@@ -448,7 +923,7 @@ extern void task_set_miss(struct task *ts, int miss)
  * 
  * @param ts Target task.
 */
-extern int task_hit(const struct task *ts)
+unsigned long int task_hit(const struct task *ts)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
@@ -460,7 +935,7 @@ extern int task_hit(const struct task *ts)
  * 
  * @param ts Target task.
 */
-extern int task_miss(const struct task *ts)
+unsigned long int task_miss(const struct task *ts)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
@@ -508,6 +983,11 @@ void task_destroy(struct task *ts)
 	/* Sanity check. */
 	assert(ts != NULL);
 
+	page_table_destroy(ts->p_table);
+	for ( unsigned long int i = 0; i < ts->work; i++ )
+		mem_destroy(array_get(ts->memacc, i));
 	array_destroy(ts->memacc);
+	free(ts->lines_accessed);
+	free(ts->pages_acessed);
 	free(ts);
 }

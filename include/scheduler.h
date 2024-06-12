@@ -13,10 +13,10 @@
     */
     struct scheduler
     {
-        bool pincores;                  /**< Pin Cores?            */
-        void (*init)(workload_tt, int); /**< Initialize scheduler. */
-        int  (*sched)(core_tt);         /**< Schedule.             */
-        void (*end)(void);              /**< End scheduler.        */
+        bool pincores;                    /**< Pin Cores?            */
+        void (*init)(workload_tt, int);   /**< Initialize scheduler. */
+        int  (*sched)(core_tt, queue_tt); /**< Schedule.             */
+        void (*end)(void);                /**< End scheduler.        */
     };
 
 
@@ -32,5 +32,5 @@
     /* Forward definitions. */
     extern int g_iterator;
 
-    extern void simsched(workload_tt, array_tt, const struct scheduler*, const struct processer*, int, int);
+    extern void simsched(workload_tt, array_tt, const struct scheduler*, const struct processer*, int, int, int);
 #endif /* SCHEDULER_H_ */
