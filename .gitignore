@@ -11,6 +11,10 @@
 *.exe
 *.out
 
+contrib/bin
+contrib/include
+contrib/lib
+contrib/share
 bin/*
 imgs/
 .vscode
