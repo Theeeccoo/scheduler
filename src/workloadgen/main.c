@@ -35,12 +35,15 @@
  */
 static struct
 {
-	distribution_tt (*dist)(void); /**< Probability distribution. */
-	int nclasses;                  /**< Number of task classes.   */
-	int ntasks;                    /**< Number of tasks.          */
-	enum workload_sorting sorting; /**< Workload sorting.         */
-	int skewness;                  /**< Workload skewness.        */
-} args = { NULL, 0, 0, WORKLOAD_SHUFFLE, WORKLOAD_SKEWNESS_NULL };
+	distribution_tt (*dist)(void); /**< Task's workload probability distribution. */
+	distribution_tt (*arrd)(void); /**< Task's arrival probability distribution.  */
+	int nclasses;                  /**< Number of task classes.                   */
+	int nclassesarr;               /**< Number of task classes in arrival.        */
+	int ntasks;                    /**< Number of tasks.                          */
+	enum workload_sorting sorting; /**< Workload sorting.                         */
+	int skewness;                  /**< Workload skewness.                        */
+	int arrskewness;               /**< Arrival time skewness.                    */
+} args = { NULL, NULL, 0, 0, 0, WORKLOAD_SHUFFLE, WORKLOAD_SKEWNESS_NULL, WORKLOAD_SKEWNESS_NULL };
 
 /*============================================================================*
  * ARGUMENT CHECKING                                                          *
@@ -63,6 +66,12 @@ static void usage(void)
 	printf("  --nclasses <number>    Number of task classes.\n");
 	printf("  --ntasks <number>      Number tasks.\n");
 	printf("  --skewness <type>      Workload skewness.\n");
+	printf("             left           Left\n");
+	printf("             right          Right\n");
+	printf("  --arrdist <name>       Probability distribution for task arrival time.\n");
+	printf("         gaussian            x = 0.0 and std = 1.0\n");
+	printf("  --arrnclasses <number> Number of task classes.\n");
+	printf("  --arrskewness <type>   Arrival distribution skewness.\n");
 	printf("             left           Left\n");
 	printf("             right          Right\n");
 	printf("  --seed <number>        Seed value\n");
@@ -146,22 +155,31 @@ static int getskewness(const char *skewnessname)
 /**
  * @brief Checks program arguments.
  *
- * @param distname Name of probability distribution.
- * @param sortname Task sorting name.
- * @param skewnessname Skewness name.
+ * @param distname         Name of workload's probability distribution.
+ * @param sortname         Task sorting name.
+ * @param skewnessname     Workload's skewness name.
+ * @param arrdname         Name of arrival time's probability distribution.
+ * @param arrdskewnessname Arrival time's skewness name.
  */
-static void checkargs(const char *distname, const char *sortname, const char *skewnessname)
+static void checkargs(const char *distname, const char *sortname, const char *skewnessname, const char *arrdname, const char *arrdkewnessname)
 {
 	if (distname == NULL)
-		error("missing probability distribution");
+		error("missing workload's probability distribution");
 	if (!(args.nclasses > 0))
-		error("invalid number of task classes");
+		error("invalid number of task classes on workload");
 	if (!(args.ntasks > 0))
 		error("invalid number of tasks");
 	if (skewnessname == NULL)
-		error("missing workload skewness");
+		error("missing workload's skewness");
 	if (sortname == NULL)
 		error("invalid task sorting");
+	if (arrdname == NULL)
+		error("missing arrival time's probability distribution");
+	if (!(args.nclassesarr > 0))
+		error("invalid number of task classes on arrival time.");
+	if (arrdkewnessname == NULL)
+		error("missing arrival time's skewness");
+	
 }
 
 /**
@@ -173,8 +191,10 @@ static void checkargs(const char *distname, const char *sortname, const char *sk
 static void readargs(int argc, const char **argv)
 {
 	const char *distname = NULL;
+	const char *arrdname = NULL;
 	const char *sortname = NULL;
 	const char *skewnessname = NULL;
+	const char *arrdkewnessname = NULL;
 	
 	/* Parse command line arguments. */
 	for (int i = 1; i < argc; i++)
@@ -187,6 +207,12 @@ static void readargs(int argc, const char **argv)
 			args.ntasks = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "--skewness"))
 			skewnessname = argv[++i];
+		else if (!strcmp(argv[i], "--arrdist"))
+			arrdname = argv[++i];
+		else if (!strcmp(argv[i], "--arrnclasses"))
+			args.nclassesarr = atoi(argv[++i]);
+		else if (!strcmp(argv[i], "--arrskewness"))
+			arrdkewnessname = argv[++i];
 		else if (!strcmp(argv[i], "--seed"))
 			srand(atoi(argv[++i]));
 		else if (!strcmp(argv[i], "--sort"))
@@ -195,11 +221,13 @@ static void readargs(int argc, const char **argv)
 			usage();
 	}
 	
-	checkargs(distname, sortname, skewnessname);
+	checkargs(distname, sortname, skewnessname, arrdname, arrdkewnessname);
 	
 	args.dist = getdist(distname);
+	args.arrd = getdist(arrdname);
 	args.sorting = getsort(sortname);
 	args.skewness = getskewness(skewnessname);
+	args.arrskewness = getskewness(arrdkewnessname);
 }
 
 /*============================================================================*
@@ -212,14 +240,18 @@ static void readargs(int argc, const char **argv)
 int main(int argc, const char **argv)
 {
 	distribution_tt dist; /* Underlying probability distribution.   */
+	distribution_tt arrd; /* Underlying probability distribution.   */
 	histogram_tt hist;    /* Histogram of probability distribution. */
+	histogram_tt arrh;    /* Histogram of probability distribution. */
 	workload_tt w;        /* Workload.                              */
 
 	readargs(argc, argv);
 
 	dist = args.dist();
+	arrd = args.arrd();
 	hist = distribution_histogram(dist, args.nclasses);
-	w = workload_create(hist, args.skewness, args.ntasks);
+	arrh = distribution_histogram(arrd, args.nclassesarr);
+	w = workload_create(hist, arrh, args.skewness, args.arrskewness, args.ntasks);
 	workload_sort(w, args.sorting);
 
 	workload_write(stdout, w);
