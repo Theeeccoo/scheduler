@@ -91,15 +91,14 @@ void processer_rr_preemptive_process(void)
             time_processed[i] = 0;
         }
 
-        // Cleaning up
-        for ( int j = 0; j < core_cache_num_sets(c); j++ )
-        {
-            core_cache_sets_accesses_update(c, j, 0);
-        }
+        // Cleaning up. If values are negative, cache_set's map will be reseted.
+        core_cache_sets_accesses_update(c, -1);
+        core_cache_sets_conflicts_update(c, -1);
     }
 
     /* Counts number of cycles spent processing current tasks. */
     int iterator = 0;
+    int total_cache_misses[array_size(processdata.cores)];
     while ( !finished )
     {
         finished = true;
@@ -142,8 +141,8 @@ void processer_rr_preemptive_process(void)
 
 
             /* Used at optimizing (grouping tasks by their last used cache sets) */
-            unsigned long int *t_lineacc = task_lineacc(curr_task);
-            unsigned long int *t_pageacc = task_pageacc(curr_task);
+            int *t_lineacc = task_lineacc(curr_task);
+            int *t_pageacc = task_pageacc(curr_task);
             
             struct mem* m = array_get(task_memacc(curr_task), position);
             bool page_hit = core_mmu_translate(c, curr_task, m, processdata.RAM);
@@ -170,14 +169,16 @@ void processer_rr_preemptive_process(void)
             {
                 task_set_miss(curr_task, task_miss(curr_task) + 1);
                 core_set_miss(c, core_miss(c) + 1);
+                core_cache_sets_conflicts_update(c, (mem_physical_addr(m) * PAGE_SIZE) % c_sets);
+                total_cache_misses[i]++;
                 /* If miss, we must add a penalty. */
                 penalties[i] += MISS_PENALTY;
                 core_cache_replace(c, m);
             }
+            
             // Mapping which line addr was allocated
+            core_cache_sets_accesses_update(c, (mem_physical_addr(m) * PAGE_SIZE) % c_sets);
 
-            core_cache_sets_accesses_update(c, (mem_physical_addr(m) * PAGE_SIZE + mem_addr_offset(m)) % c_sets, core_cache_sets_accesses(c)[(mem_physical_addr(m) * PAGE_SIZE + mem_addr_offset(m)) % c_sets] + 1);
-           
             t_pageacc[position] = (mem_physical_addr(m) * PAGE_SIZE) % r_pages;
             t_lineacc[position++] = (mem_physical_addr(m) * PAGE_SIZE) % c_sets;
 
@@ -223,7 +224,10 @@ void processer_rr_preemptive_process(void)
 
     /* Cleaning up. */
     for ( unsigned long int i = 0; i < array_size(processdata.cores); i++ )
-        core_vacate(array_get(processdata.cores, i));
+    {
+        core_tt c = array_get(processdata.cores, i);
+        core_vacate(c);
+    }
 
     /* Max processing time spent (max_penalties) + preparation time (iterator) */
     *(processdata.g_iterator) += max_penalties + iterator;
