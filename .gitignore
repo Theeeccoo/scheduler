@@ -17,4 +17,5 @@ contrib/lib
 contrib/share
 bin/*
 imgs/
+plot/*
 .vscode
