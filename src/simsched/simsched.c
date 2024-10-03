@@ -217,30 +217,46 @@ static void simsched_dump(array_tt cores, workload_tt w)
 
 	// Analysing how well balanced was the scheduling.
 	int num_itr = queue_size(core_workloads(array_get(cores, 0)));
-	unsigned long int all_wrk[ncores];
 
-	unsigned long int total_unbalancement = 0;
+	unsigned long int all_wrk[ncores];
+	int all_ntasks[ncores],
+	    all_cachemiss[ncores];
+	unsigned long int total_workload_unbalancement = 0;
+	int total_ntasks_unbalancement = 0;
+	int total_cachemiss_unbalancement = 0;
 	for ( int i = 1; i < num_itr; i++ )
 	{
-		unsigned long int diff = 0;
+		unsigned long int wrk_diff = 0;
+		int ntasks_diff = 0,
+		    cachemiss_diff = 0;
 		for( unsigned long int j = 0; j < array_size(cores); j++ )
 		{
 			core_tt c = array_get(cores, j);
-			all_wrk[j] = scheditr_ntasks(queue_peek(core_workloads(c), i));
+			sched_itr_tt si = (sched_itr_tt) queue_peek(core_workloads(c), i);
+
+			all_wrk[j] = scheditr_twork(si);
+			all_ntasks[j] = scheditr_ntasks(si);
+			all_cachemiss[j] = scheditr_pmiss(si);
 		}
 
 		for (int j = 0; j < ncores; j++ )
 		{
 			for (int k = j + 1; k < ncores; k++ )
 			{
+				/* Workload unbalancement. */
 				if ( all_wrk[j] > all_wrk[k] )
-					diff += all_wrk[j] - all_wrk[k];
+					wrk_diff += all_wrk[j] - all_wrk[k];
 				else 
-					diff += all_wrk[k] - all_wrk[j];
+					wrk_diff += all_wrk[k] - all_wrk[j];
 
+				/* Number of tasks unbalancement. */
+				ntasks_diff += abs(all_ntasks[j] - all_ntasks[k]);
+				cachemiss_diff += abs(all_cachemiss[j] - all_cachemiss[k]);
 			}
 		}
-		total_unbalancement += diff;
+		total_workload_unbalancement += wrk_diff;
+		total_ntasks_unbalancement += ntasks_diff;
+		total_cachemiss_unbalancement += cachemiss_diff;
 	}
 
 	unsigned long int page_hit = 0,
@@ -261,7 +277,10 @@ static void simsched_dump(array_tt cores, workload_tt w)
 	printf("99th Percentile Tasks' Slowdown: %f\n", percentile_slowdown);
 	printf("Total page hits: %lu - Total page faults: %lu\n", page_hit, page_fault);
 	printf("Total cache hits: %lu - Total cache misses: %lu\n", cache_hit, cache_miss);
-	printf("Total Unbalancement: %lu\n", total_unbalancement);
+	printf("Total Unbalancement: %lu\n", total_workload_unbalancement);
+	printf("Total Workload Unbalancement: %lu\n", total_workload_unbalancement);
+	printf("Total Number of Tasks Unbalancement: %d\n", total_ntasks_unbalancement);
+	printf("Total Cache Miss Unbalancement: %d\n", total_cachemiss_unbalancement);
 	printf("time: %lu\n", max);
 	printf("cost: %lu\n", max*ncores);
 	printf("performance: %ld\n", total/max);
@@ -435,8 +454,8 @@ static void group(struct workload *w, int winsize, struct kmeans *k)
 	{
 		task_tt curr_task = queue_peek(tasks, i);
 		values[i] = (int*) malloc(sizeof(int) * winsize);
-		int mem_ptr = task_memptr(curr_task);
-		unsigned long int* lines = task_lineacc(curr_task);
+		unsigned long int mem_ptr = task_memptr(curr_task);
+		int* lines = task_lineacc(curr_task);
 
 		// Getting the last WINSIZE accesses
 		for ( int j = 0; j < winsize; j++ )
@@ -467,21 +486,25 @@ static void model_optimization(struct workload *w, struct model *m, array_tt cor
 	assert(m != NULL);
 	assert(cores != NULL);
 
-	array_tt all_tasks = (array_tt) workload_arrtasks(w);
+	array_tt all_buckets = (array_tt) workload_arrtasks(w);
 	/* Orphan tasks. Tasks that were processed, atleast once, and are waiting for a free core to be processed again. */
-	queue_tt orphan_tasks = (queue_tt) array_get(all_tasks, array_size(all_tasks) - 2);
-
-	model_train(m, cores, all_tasks, orphan_tasks);
+	queue_tt orphan_tasks = (queue_tt) array_get(all_buckets, array_size(all_buckets) - 2);
+	queue_tt waiting_tasks = (queue_tt) array_get(all_buckets, array_size(all_buckets) - 1);
 
 	int total_capacity = 0;
-	for ( unsigned long int i = 0; i < array_size(cores); i++ )
-	{
-		queue_tt bucket = array_get(all_tasks, i);
-		core_tt core = array_get(cores, i);
-		// How much is left.
-		total_capacity += (core_capacity(core) - queue_size(bucket));
-	}
+	for ( unsigned long int i = 0; i < array_size(cores); i++ ) 
+		total_capacity += core_capacity(array_get(cores, i));
 
+	queue_tt all_tasks = queue_create();
+	while ( (queue_size(all_tasks) < total_capacity) && ( (queue_size(orphan_tasks) + queue_size(waiting_tasks)) > 0 ) )
+	{
+		if ( queue_size(orphan_tasks) > 0 )
+			queue_insert(all_tasks, queue_remove(orphan_tasks));
+		else 
+			queue_insert(all_tasks, queue_remove(waiting_tasks));
+	}
+	
+	model_train(m, cores, all_buckets, all_tasks); 
 }
 
 /**
@@ -541,13 +564,16 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 			}
 			
 			/* Number of already processed tasks, i.e., Number of tasks in our second-from-last queue. */
+			// int num_tasks = queue_size( (queue_tt) array_get(workload_arrtasks(w), array_size(workload_arrtasks(w)) - 2) );
 
-			int num_tasks = queue_size( (queue_tt) array_get(workload_arrtasks(w), array_size(workload_arrtasks(w)) - 2) );
 
-			if ( num_tasks >= batchsize )
-				group(w, winsize, k);
-			else 
-				populate_queues_opt(w, cores, array_size(cores));
+			/* Need to analyse which is better. */
+			// if ( num_tasks >= batchsize )
+			// 	group(w, winsize, k);
+			// else 
+			// 	populate_queues_opt(w, cores, array_size(cores));
+			group(w, winsize, k);
+
 
 			/* Scheduling tasks to ready cores. */
 
@@ -629,13 +655,14 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 			}
 			
 			/* Number of already processed tasks, i.e., Number of tasks in our second-from-last queue. */
+			// int num_tasks = queue_size( (queue_tt) array_get(workload_arrtasks(w), array_size(workload_arrtasks(w)) - 2) );
 
-			int num_tasks = queue_size( (queue_tt) array_get(workload_arrtasks(w), array_size(workload_arrtasks(w)) - 2) );
-
-			if ( num_tasks >= batchsize )
-				model_optimization(w, model, cores);
-			else
-				populate_queues_opt(w, cores, array_size(cores));
+			/* Need to analyse which is better. */
+			// if ( num_tasks >= batchsize )
+			// 	model_optimization(w, model, cores);
+			// else
+			// 	populate_queues_opt(w, cores, array_size(cores));
+			model_optimization(w, model, cores);
 
 			/* Scheduling tasks to ready cores. */
 
