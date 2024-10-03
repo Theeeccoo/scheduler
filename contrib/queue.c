@@ -243,7 +243,7 @@ void *queue_peek(struct queue *q, int n)
 
 	/* Sanity check. */
 	assert(q != NULL);
-	assert(q->size >= 0);
+	assert(n >= 0);
 	assert(n <= q->size);
 
 	/* Get object. */
