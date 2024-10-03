@@ -75,10 +75,11 @@
 	extern void task_set_memacc(task_tt, array_tt);
 	extern void task_set_memptr(task_tt, unsigned long int);
 	extern unsigned long int task_memptr(const_task_tt);
-	extern unsigned long int* task_lineacc(const_task_tt);
-	extern unsigned long int* task_pageacc(const_task_tt);
-	extern bool task_accessed_set(const_task_tt, unsigned long int, int);
+	extern int* task_lineacc(const_task_tt);
+	extern int* task_pageacc(const_task_tt);
+	extern bool task_accessed_set(const_task_tt, int, int);
 
+	extern double task_hotness(task_tt, int);
 	
 	extern void task_set_page_hit(task_tt, unsigned long int);
 	extern void task_set_page_fault(task_tt, unsigned long int);
@@ -91,6 +92,9 @@
 
 	extern void task_core_assign(task_tt, int);
 	extern int task_core_assigned(const_task_tt);
+
+
+	extern int map_compare_mem(void*, void*);
 
 	/**@}*/
 
