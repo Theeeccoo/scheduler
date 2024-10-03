@@ -86,6 +86,7 @@ void processer_non_preemptive_process(void)
 
     /* Counts number of cycles spent processing current tasks. */
     int iterator = 0;
+    int total_cache_misses[array_size(processdata.cores)];
     while ( !finished )
     {
         finished = true;
@@ -128,8 +129,8 @@ void processer_non_preemptive_process(void)
 
 
             /* Used at optimizing (grouping tasks by their last used cache sets) */
-            unsigned long int *t_lineacc = task_lineacc(curr_task);
-            unsigned long int *t_pageacc = task_pageacc(curr_task);
+            int *t_lineacc = task_lineacc(curr_task);
+            int *t_pageacc = task_pageacc(curr_task);
             
             struct mem* m = array_get(task_memacc(curr_task), position);
             bool page_hit = core_mmu_translate(c, curr_task, m, processdata.RAM);
@@ -156,11 +157,14 @@ void processer_non_preemptive_process(void)
             {
                 task_set_miss(curr_task, task_miss(curr_task) + 1);
                 core_set_miss(c, core_miss(c) + 1);
+                core_cache_sets_conflicts_update(c, (mem_physical_addr(m) * PAGE_SIZE) % c_sets);
+                total_cache_misses[i]++;
                 /* If miss, we must add a penalty. */
                 penalties[i] += MISS_PENALTY;
                 core_cache_replace(c, m);
             }
             // Mapping which line addr was allocated
+            core_cache_sets_accesses_update(c, (mem_physical_addr(m) * PAGE_SIZE) % c_sets);
            
             t_pageacc[position] = (mem_physical_addr(m) * PAGE_SIZE) % r_pages;
             t_lineacc[position++] = (mem_physical_addr(m) * PAGE_SIZE) % c_sets;
