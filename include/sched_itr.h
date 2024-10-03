@@ -17,8 +17,10 @@
 	/**@{*/
 	extern sched_itr_tt scheditr_create(unsigned long int, int);
 	extern void scheditr_destroy(sched_itr_tt);
+	extern void scheditr_set_pmiss(sched_itr_tt, int);
 
     extern unsigned long int scheditr_twork(const_sched_itr_tt);
+	extern int scheditr_pmiss(const_sched_itr_tt);
     extern int scheditr_ntasks(const_sched_itr_tt);
 
     /**@}*/
