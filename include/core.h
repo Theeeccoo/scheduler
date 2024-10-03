@@ -46,17 +46,20 @@
 	extern bool core_cache_checkaddr(const_core_tt, mem_tt);
 	extern void core_cache_replace(core_tt, mem_tt);
 	extern int core_cache_num_sets(const_core_tt);
-	extern int* core_cache_sets_accesses(const_core_tt);
-	extern void core_cache_sets_accesses_update(core_tt, int, int);
+	extern map_tt core_cache_sets_accesses(const_core_tt);
+	extern void core_cache_sets_accesses_update(core_tt, int);
+	extern map_tt core_cache_sets_conflicts(const_core_tt);
+	extern void core_cache_sets_conflicts_update(core_tt, int);
+	extern double core_cache_sets_variance(const_core_tt);
 
 
 	extern void core_set_contention(core_tt, int);
 	extern int core_contention(const_core_tt);
 
-
 	extern void core_set_workloads(core_tt, unsigned long int, int);
 	extern queue_tt core_workloads(const_core_tt);
 	extern unsigned long int core_wtotal(const_core_tt);
+	
     /**@}*/
 
 #endif /* CORE_H_ */
