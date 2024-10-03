@@ -3,6 +3,7 @@
 
 #include <cache.h>
 #include <mylib/util.h>
+#include <mylib/map.h>
 
 /*====================================================================*
  * BLOCK                                                              *
@@ -363,7 +364,8 @@ struct cache
     int  num_ways;           /**< Total number of cache ways.            */
     int  num_blocks;         /**< Total number of blocks in cache_way.   */
     struct cache_set **sets; /**< Cache sets.                            */
-    int* sets_accesses;      /**< Number of tasks that acessed each set. */
+    map_tt sets_accesses;    /**< Number of tasks that acessed each set. */ 
+    map_tt sets_conflicts;   /**< Total number of conflicts in each set. */
 };
 
 /**
@@ -387,13 +389,11 @@ cache_tt cache_create(int num_sets, int num_ways, int num_blocks)
     ce->num_ways = num_ways;
     ce->num_blocks = num_blocks;
     ce->sets = smalloc(sizeof(struct cache_set*) * ce->num_sets);
-    ce->sets_accesses = (int*) malloc(sizeof(int) * ce->num_sets);
+    ce->sets_accesses = map_create(map_compare_int);
+    ce->sets_conflicts = map_create(map_compare_int);
 
     for ( int i = 0; i < ce->num_sets; i++ )
-    {
         ce->sets[i] = cache_set_create(i, ce->num_ways, ce->num_blocks);        
-        ce->sets_accesses[i] = 0;
-    }
     
     return ce;
 }
@@ -472,6 +472,7 @@ void cache_replace(struct cache *ce, struct mem *mem)
        else
        {
             cs->next_way = (cs->next_way + 1) % cs->num_ways;
+            cache_set_conflicts_update(ce, cache_set);
             cache_set_replace_way(cs, cs->next_way, tag, mem_offset);
        }
 
@@ -494,13 +495,13 @@ int cache_num_sets(const struct cache *ce)
 }
 
 /**
- * @brief Returns the array that controls the number of tasks that has, in last iteration, acessed each cache's set.
+ * @brief Returns the map that controls the number of tasks that has, in last iteration, acessed each cache's set.
  * 
  * @param ce Target cache.
  * 
- * @returns Cache's array of set's accesses.
+ * @returns Cache's map of set's accesses.
  */
-int* cache_set_accesses(const struct cache *ce)
+map_tt cache_set_accesses(const struct cache *ce)
 {
     /* Sanity check. */
     assert(ce != NULL);
@@ -508,21 +509,58 @@ int* cache_set_accesses(const struct cache *ce)
 }
 
 /**
- * @brief Updates the cache's sets acesses with specified value.
+ * @brief Returns the map that controls the number conflicts, in the last iteration, in each cache's set.
  * 
- * @param ce           Target cache.
- * @param index        Target set.
- * @param update_value Desired value
+ * @param ce Target cache.
+ * 
+ * @returns Cache's map of set's conflicts.
  */
-void cache_set_accesses_update(struct cache *ce, int index, int update_value)
+map_tt cache_set_conflicts(const struct cache *ce)
 {
     /* Sanity check. */
     assert(ce != NULL);
-    assert(index >= 0);
-    assert(index < ce->num_sets);
-    assert(update_value >= 0);
+    return ce->sets_conflicts;
+}
 
-    ce->sets_accesses[index] = update_value;
+/**
+ * @brief Updates the cache's sets' acesses with specified value.
+ * 
+ * @param ce  Target cache.
+ * @param set Desired set.
+ */
+void cache_set_accesses_update(struct cache *ce, int set)
+{
+    /* Sanity check. */
+    assert(ce != NULL);
+
+    // If value is negative, we reset the map
+    if ( set < 0 )
+    {
+        map_destroy(ce->sets_accesses);
+        ce->sets_accesses = map_create(map_compare_int);
+    }
+    else 
+        map_insert(ce->sets_accesses, &set);
+}
+
+/**
+ * @brief Updates the cache's sets' conflicts with specified value.
+ * 
+ * @param ce  Target cache.
+ * @param set Desired set.
+ */
+void cache_set_conflicts_update(struct cache *ce, int set)
+{
+    /* Sanity check. */
+    assert(ce != NULL);
+    
+    if ( set < 0 )
+    {
+        map_destroy(ce->sets_conflicts);
+        ce->sets_conflicts = map_create(map_compare_int);
+    }
+    else 
+        map_insert(ce->sets_conflicts, &set);
 }
 
 /**
@@ -538,6 +576,7 @@ void cache_destroy(struct cache *ce)
     {
         cache_set_destroy(ce->sets[i]);
     }
-    free(ce->sets_accesses);
+    map_destroy(ce->sets_accesses);
+    map_destroy(ce->sets_conflicts);
     free(ce);
 }

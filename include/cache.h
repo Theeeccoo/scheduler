@@ -1,6 +1,7 @@
 #ifndef CACHE_H_
 #define CACHE_H_
 
+	#include <mylib/map.h>
     #include <stdbool.h>
     #include "mem.h"
 
@@ -24,8 +25,10 @@
     extern bool cache_check_addr(const_cache_tt, mem_tt);
     extern void cache_replace(cache_tt, mem_tt);
     extern int cache_num_sets(const_cache_tt);
-	extern int* cache_set_accesses(const_cache_tt);
-	extern void cache_set_accesses_update(cache_tt, int, int);
+	extern map_tt cache_set_accesses(const_cache_tt);
+	extern void cache_set_accesses_update(cache_tt, int);
+	extern map_tt cache_set_conflicts(const_cache_tt);
+	extern void cache_set_conflicts_update(cache_tt, int);
     /**@}*/
 
 #endif /* CACHE_H_ */

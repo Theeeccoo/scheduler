@@ -228,9 +228,9 @@ int core_getcid(const struct core *c)
  * 
  * @param c Target core.
  * 
- * @returns Cache's number of acesses in each cache set.
+ * @returns Cache's number of acesses in each cache set accessed.
  */
-int* core_cache_sets_accesses(const struct core *c)
+map_tt core_cache_sets_accesses(const struct core *c)
 {
     /* Sanity check. */
     assert(c != NULL);
@@ -239,17 +239,80 @@ int* core_cache_sets_accesses(const struct core *c)
 }
 
 /**
+ * @brief Gets the total variance on cache set accesses by tasks in last iteration.
+ * 
+ * @param c Target core.
+ * 
+ * @returns Total variance on cache set accesses.
+ */
+double core_cache_sets_variance(const struct core *c)
+{
+    /* Sanity check. */
+    assert(c != NULL);
+    assert(c->cache != NULL);
+
+    map_tt cache_sets = cache_set_accesses(c->cache);
+    double variance = 0.0;
+    if ( map_size(cache_sets) != 0 )
+    {
+        int c_set = cache_num_sets(c->cache);
+        int sum = 0;
+        for ( int i = 0; i < map_size(cache_sets); i++ )
+        {
+            struct map_return *m_r = map_peek(cache_sets, i);
+            sum += m_r->num_obj;
+        }
+
+        double mean_value = sum / c_set;
+        for ( int i = 0; i < map_size(cache_sets); i++ )
+        {
+            struct map_return *m_r = map_peek(cache_sets, i);
+            variance += (m_r->num_obj - mean_value) * (m_r->num_obj - mean_value);
+        }
+        variance /= (double) c_set;
+    }
+    return variance;
+}
+
+/**
  * @brief Updates cache's number of acesses of a specified cache set.
  * 
  * @param c            Target core.
  * @param index        Target set.
- * @param update_value Desired update value.
  */
-void core_cache_sets_accesses_update(struct core *c, int index, int update_value)
+void core_cache_sets_accesses_update(struct core *c, int index)
 {
     /* Sanity check. */
     assert(c != NULL);
-    cache_set_accesses_update(c->cache, index, update_value);
+    cache_set_accesses_update(c->cache, index);
+}
+
+/**
+ * @brief Returns cache's number of conflicts in each cache set. 
+ * 
+ * @param c Target core.
+ * 
+ * @returns Cache's number of conflicts in each cache set accessed.
+ */
+map_tt core_cache_sets_conflicts(const struct core *c)
+{
+    /* Sanity check. */
+    assert(c != NULL);
+    assert(c->cache != NULL);
+    return cache_set_conflicts(c->cache);
+}
+
+/**
+ * @brief Updates cache's number of conflicts of a specified cache set.
+ * 
+ * @param c            Target core.
+ * @param index        Target set.
+ */
+void core_cache_sets_conflicts_update(struct core *c, int index)
+{
+    /* Sanity check. */
+    assert(c != NULL);
+    cache_set_conflicts_update(c->cache, index);
 }
 
 /**
