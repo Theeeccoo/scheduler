@@ -27,9 +27,10 @@
 #include <math.h>
 
 #include <task.h>
-#include <mylib/util.h>
-#include <mem.h>
 #include <math.h>
+#include <mem.h>
+#include <mylib/util.h>
+#include <mylib/map.h>
 
 /*====================================================================*
  * PAGE TABLE LINE                                                    *
@@ -165,7 +166,6 @@ static inline struct page_table *page_table_create(int task_id, unsigned long in
 	/* Sanity check. */
 	assert(task_id >= 0);
 	int num_lines = (int) (ceil(mem_size / PAGE_SIZE) + 1);
-
 	pt = smalloc(sizeof(struct page_table));
 	pt->task_id = task_id;
 	pt->num_lines = num_lines;
@@ -244,8 +244,13 @@ struct task
 	unsigned long int hits;			   /**< Number of hits.                         */
 	unsigned long int misses;          /**< Number of misses.                       */
 
-	unsigned long int* lines_accessed; /**< Which cache lines were accessed p/task. */   
-	unsigned long int* pages_acessed;  /**< Which page lines were accessed p/task.  */    
+	int* all_sets_accessed;            /**< All cache sets accessed p/ task.        */
+	int* all_pages_accessed;           /**< All page lines accessed p/ task.        */
+
+	map_tt mem_accessed;               /**< All memory addresses accessed p/ task.  */
+	map_tt sets_accessed;              /**< Which cache sets were accessed p/ task. */
+	map_tt pages_accessed;             /**< Which page lines were accessed p/ task. */
+
 	int lineptr;                       /**< Points to the last line accessed.       */
 
 	struct page_table* p_table;        /**< Task's page table.                      */
@@ -293,16 +298,15 @@ struct task *task_create(int real_id, unsigned long int work, int arrival)
 	task->hits = 0;
 	task->misses = 0;
 
-	/* 
-		One might optimize this. It's needed, actually, only "WINSIZE" values at each iteration, 
-		so each iteration values at "lines_accessed" can be rewriten.
-	*/
-	task->lines_accessed = smalloc(sizeof(unsigned long int) * work);
-	task->pages_acessed = smalloc(sizeof(unsigned long int) * work);
+	task->all_sets_accessed = smalloc(sizeof(int) * task->work);
+	task->all_pages_accessed = smalloc(sizeof(int) * task->work);
+	task->sets_accessed = map_create(map_compare_int);
+	task->pages_accessed = map_create(map_compare_int);
+	task->mem_accessed = map_create(map_compare_ulong_int);
 
 	task->p_table = page_table_create(task->tsid, work);
 	// Initializing. 
-	for ( unsigned long int i = 0; i < work; i++ ) task->lines_accessed[i] = -1;
+	for ( unsigned long int i = 0; i < work; i++ ) task->all_sets_accessed[i] = -1;
 
 	task->memacc = array_create(work);
 	task->memptr = 0;
@@ -761,12 +765,12 @@ array_tt task_memacc(const struct task *ts)
  * 
  * @return Task's current memory_addr->cache_line mapping.
 */
-unsigned long int* task_lineacc(const struct task *ts)
+int* task_lineacc(const struct task *ts)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
 
-	return (ts->lines_accessed);
+	return (ts->all_sets_accessed);
 }
 
 /**
@@ -776,12 +780,63 @@ unsigned long int* task_lineacc(const struct task *ts)
  * 
  * @return Task's current memory_addr->page_line mapping.
 */
-unsigned long int* task_pageacc(const struct task *ts)
+int* task_pageacc(const struct task *ts)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
 
-	return (ts->pages_acessed);
+	return (ts->all_pages_accessed);
+}
+
+int map_compare_mem(void* addr1, void* addr2)
+{
+	/* Sanity check. */
+	assert(addr1 != NULL);
+	assert(addr2 != NULL);
+    
+	unsigned long int addr1_phy = mem_physical_addr((mem_tt) addr1) * PAGE_SIZE + mem_addr_offset((mem_tt) addr1);
+	unsigned long int addr2_phy = mem_physical_addr((mem_tt) addr2) * PAGE_SIZE + mem_addr_offset((mem_tt) addr2);
+
+	return (addr1_phy == addr2_phy);
+}
+
+/**
+ * @brief Returns the total percentage of repeated sets in last WINSIZE.
+ * 
+ * @param ts      Target task.
+ * @param winsize Winsize.
+ * 
+ * @returns Total percentage of repeated sets.
+ */
+double task_hotness(struct task *ts, int winsize)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
+	int total_sum = 0;
+	if ( task_work_processed(ts) != 0 ) 
+	{
+
+		/* Cleaning old values. */
+
+		map_destroy(ts->sets_accessed);
+		ts->sets_accessed = map_create(map_compare_int);
+
+		// Saving last WINSIZE accesses into map
+		for ( int i = 0; i < winsize; i++ )
+		{
+			int curr_set = ts->all_sets_accessed[ts->memptr - winsize + i];
+			map_insert(ts->mem_accessed, &curr_set);
+		}
+		
+		// Getting the number of appearences that each address had.
+		for ( int i = 0; i < map_size(ts->mem_accessed); i++ )
+		{
+			struct map_return *m_r = map_peek(ts->mem_accessed, i);
+			int num_obj = (int) m_r->num_obj;
+			total_sum += num_obj;
+		}
+	}
+	return (double) total_sum / winsize;
 }
 
 /**
@@ -808,7 +863,7 @@ unsigned long int task_memptr(const struct task *ts)
  * 
  * @returns True if has accessed. False, otherwise.
  */
-bool task_accessed_set(const struct task *ts, unsigned long int set, int winsize)
+bool task_accessed_set(const struct task *ts, int set, int winsize)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
@@ -819,7 +874,7 @@ bool task_accessed_set(const struct task *ts, unsigned long int set, int winsize
 
 	for ( int i = 0; i < winsize; i++ )
 	{
-		if ( ts->lines_accessed[(ts->lineptr - winsize + i)] == set ) return true;
+		if ( ts->all_sets_accessed[(ts->lineptr - winsize + i)] == set ) return true;
 	}
 	return false;
 }
@@ -983,11 +1038,17 @@ void task_destroy(struct task *ts)
 	/* Sanity check. */
 	assert(ts != NULL);
 
+
 	page_table_destroy(ts->p_table);
 	for ( unsigned long int i = 0; i < ts->work; i++ )
 		mem_destroy(array_get(ts->memacc, i));
+
+	map_destroy(ts->mem_accessed);
+	map_destroy(ts->sets_accessed);
+	map_destroy(ts->pages_accessed);
+
 	array_destroy(ts->memacc);
-	free(ts->lines_accessed);
-	free(ts->pages_acessed);
+	free(ts->all_sets_accessed);
+	free(ts->all_pages_accessed);
 	free(ts);
 }
