@@ -158,12 +158,11 @@ struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, i
 	}
 
 	/* Generating Tasks' memory addresses. */
-	distribution_tt dist_accesses = dist_gaussian();
-
+	distribution_tt dist_accesses = dist_beta();
 	for ( int j = 0; j < ntasks; j ++)
 	{
 		task_tt curr_task = queue_peek(workload_tasks(w), j);
-		histogram_tt histogram_accesses = distribution_histogram(dist_accesses, (int)round(task_workload(curr_task)/2));
+		histogram_tt histogram_accesses = distribution_histogram(dist_accesses, task_workload(curr_task));
 		task_create_memacc(curr_task, histogram_accesses);
 	}
 	return (w);

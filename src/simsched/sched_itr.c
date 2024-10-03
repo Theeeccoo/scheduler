@@ -10,8 +10,9 @@
  */
 struct sched_itr
 {
-    unsigned long int twork; /**< Total workload assigned.                    */
-    int ntasks;              /**< Total number of tasks assgnied at that itr. */
+    unsigned long int twork; /**< Total workload assigned.                      */
+    int pmiss;               /**< Total time spent with misses in an iteration. */
+    int ntasks;              /**< Total number of tasks assgnied at that itr.   */
 };
 
 /**
@@ -33,7 +34,38 @@ sched_itr_tt scheditr_create(unsigned long int twork, int ntasks)
 
     si->twork = twork;
     si->ntasks = ntasks;
+    si->pmiss = 0;
 	return (si);
+}
+
+/**
+ * @brief Sets the total time spent with misses in an iteration.
+ * 
+ * @param si    Target iteration.
+ * @param pmiss Time spent.
+ */
+void scheditr_set_pmiss(struct sched_itr *si, int pmiss)
+{
+    /* Sanity check. */
+    assert(si != NULL);
+    assert(pmiss >= 0);
+
+    si->pmiss = pmiss;
+}
+
+/**
+ * @brief Returns the total time spent with misses in an iteration.
+ * 
+ * @param si Target iteration.
+ * 
+ * @returns Total time spent with misses in an iteration.
+ */
+int scheditr_pmiss(const struct sched_itr *si)
+{   
+    /* Sanity check. */
+    assert(si != NULL);
+
+    return (si->pmiss);
 }
 
 /**

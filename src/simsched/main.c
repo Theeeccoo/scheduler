@@ -117,7 +117,7 @@ static void usage(void)
 	printf("  --ncores <number>       Number of working cores.\n");
 	printf("  --winsize <number>      Memory Accesses Window size\n");
 	printf("  --seed <number>         Seed value.\n");
-	printf("  --optimize <number>     0 = No. 1 = Yes\n");
+	printf("  --optimize <number>     0 = No Opt. 1 = KMeans DTW. 2 = Simple OPT. 3 = Model OPT\n");
 	printf("  --help                  Display this message.\n");
 	printf("Schedulers:\n");
 	printf("  fcfs               First-Come, First-Served Scheduling.\n");
@@ -229,9 +229,10 @@ static void (*get_kernel(const char *kernelname))(workload_tt)
  * @param wfilename   Input workload filename.
  * @param afilename   Input architecture filename.
  * @param kernelname  Application kernel name.
+ * @param ncores      Number of cores in our simulation.
  * @param has_winsize Checks is winsize was informed.
 */
-static void checkargs(const char *wfilename, const char *afilename, const char *kernelname, int has_winsize)
+static void checkargs(const char *wfilename, const char *afilename, const char *kernelname, int ncores, int has_winsize)
 {
 	if (afilename == NULL)
 		error("missing architecture file.");
@@ -239,6 +240,8 @@ static void checkargs(const char *wfilename, const char *afilename, const char *
 		error("missing input workload file.");
 	if (kernelname == NULL)
 		error("missing kernel name.");
+	if (!(ncores > 0))
+		error("missing cores.");
 	if (args.processer == NULL)
 		error("missing cores' processing strategy.");
 	if (args.scheduler == NULL)
@@ -316,7 +319,7 @@ static void readargs(int argc, const char **argv)
 	}
 
 
-	checkargs(wfilename, afilename, kernelname, has_winsize);
+	checkargs(wfilename, afilename, kernelname, ncores, has_winsize);
 
 	args.workload = get_workload(wfilename, ncores);
     args.cores = get_cores(afilename, ncores);
