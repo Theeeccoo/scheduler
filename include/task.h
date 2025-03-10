@@ -23,7 +23,6 @@
 #define TASK_H_
 
 	#include "mylib/array.h"
-	#include "mylib/map.h"
 	#include "statistics.h"
 
 	/**
@@ -40,24 +39,24 @@
 	 * @name Operations on Task
 	 */
 	/**@{*/
-	extern task_tt task_create(int, unsigned long int, int, unsigned long int);
+	extern task_tt task_create(int, unsigned long int, int);
 	extern void task_destroy(task_tt);
 	extern void task_set_realid(task_tt, int);
 	extern int task_gettsid(const_task_tt);
 	extern int task_realid(const_task_tt);
 
 	extern int task_arrivaltime(const_task_tt);
-	extern unsigned long int task_waiting_time(const_task_tt);
+	extern int task_waiting_time(const_task_tt);
 	extern unsigned long int task_workload(const_task_tt);
 	extern unsigned long int task_work_processed(const_task_tt);
 	extern unsigned long int task_work_left(const_task_tt);
-	extern unsigned long int task_emoment(const_task_tt);
-	extern unsigned long int task_lmoment(const_task_tt);
+	extern int task_emoment(const_task_tt);
+	extern int task_lmoment(const_task_tt);
 
-	extern void task_set_waiting_time(task_tt, unsigned long int);
+	extern void task_set_waiting_time(task_tt, int);
 	extern void task_set_arrivaltime(task_tt, int);
-	extern void task_set_emoment(task_tt, unsigned long int);
-	extern void task_set_lmoment(task_tt, unsigned long int);
+	extern void task_set_emoment(task_tt, int);
+	extern void task_set_lmoment(task_tt, int);
 	extern void task_set_workprocess(task_tt, unsigned long int);
 	extern void task_set_workload(task_tt, unsigned long int);
 
@@ -80,9 +79,7 @@
 	extern int* task_pageacc(const_task_tt);
 	extern bool task_accessed_set(const_task_tt, int, int);
 
-	extern void task_set_is_percentiles_around_threshold(task_tt, int, int);
-	extern int* task_percentiles_around_threshold(const_task_tt);
-	extern map_tt task_hotness(task_tt, int);
+	extern double task_hotness(task_tt, int);
 	
 	extern void task_set_page_hit(task_tt, unsigned long int);
 	extern void task_set_page_fault(task_tt, unsigned long int);

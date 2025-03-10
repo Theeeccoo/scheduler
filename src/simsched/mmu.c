@@ -44,13 +44,14 @@ bool mmu_translate(const struct mmu *mmu, struct task *ts, struct mem *mem, RAM_
     assert(ts != NULL);
     assert(mem != NULL);
 
-    unsigned long int mem_virtual_address  = mem_virtual_addr(mem) * PAGE_SIZE,
-                      mem_physical_address = 0;
-    int index    = (int) (mem_virtual_address / PAGE_SIZE),
+    unsigned long int mem_physical_address = 0;
+    int index = (int)mem_virtual_addr(mem),
         frame_id = 0;
-                 /* Checking if mem addr's line is valid. */
+                /* Checking if mem addr's line is valid. */
     // If not valid, page fault
+    printf("alo %d\n", index);
     bool page_hit = task_check_pt_line_valid(ts, index);
+    printf("tchau\n");
 
     if ( !page_hit )
     {

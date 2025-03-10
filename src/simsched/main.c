@@ -331,7 +331,6 @@ int main(int argc, const char** argv)
 	args.kernel(args.workload);
 
 	srand(args.seed);
-
 	workload_sort(args.workload, WORKLOAD_ARRIVAL);
 
 	simsched(args.workload, args.cores, args.scheduler, args.processer, args.batchsize, args.winsize, args.optimize);

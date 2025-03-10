@@ -233,7 +233,7 @@ struct task
 	int tsid;                          /**< Task identification number.             */
 	int real_id;                       /**< Real id assigned when workload created. */
 	int arrival_time;                  /**< Which iteration current task arrived.   */
-	unsigned long int waiting_time;    /**< Waiting time for completion of a task.  */
+	int waiting_time;                  /**< Waiting time for completion of a task.  */
 	unsigned long int work;            /**< Total workload of a task.               */
 	unsigned long int work_processed;  /**< Total workload processed.               */ 
  
@@ -244,7 +244,6 @@ struct task
 	unsigned long int hits;			   /**< Number of hits.                         */
 	unsigned long int misses;          /**< Number of misses.                       */
 
-	int* percentiles_around_threshold; /**< Used at Q-Learning model optimization.  */
 	int* all_sets_accessed;            /**< All cache sets accessed p/ task.        */
 	int* all_pages_accessed;           /**< All page lines accessed p/ task.        */
 
@@ -258,8 +257,8 @@ struct task
 	array_tt memacc;                   /**< Tasks' memory accesses.                 */
 	unsigned long int memptr;          /**< Points to the last memory accessed.     */
  
-	unsigned long int e_moment;                      /**< Moment when task (r)entered in a core.  */
-	unsigned long int l_moment;                      /**< Moment when task left from a core.      */
+	int e_moment;                      /**< Moment when task (r)entered in a core.  */
+	int l_moment;                      /**< Moment when task left from a core.      */
 };
 
 /**
@@ -270,14 +269,13 @@ static int next_tsid = 0;
 /**
  * @brief Creates a task.
  *
- * @param real_id      Initial ID assigned when workload created.
- * @param work         Workload of a task.
- * @param arrival      Arrival moment of a task.
- * @param highest_addr Highest Memory address acessed by task. Used to know how many pages Task will need.
+ * @param real_id Initial ID assigned when workload created.
+ * @param work    Workload of a task.
+ * @param arrival Arrival moment of a task.
  *
  * @returns A task.
  */
-struct task *task_create(int real_id, unsigned long int work, int arrival, unsigned long int highest_addr)
+struct task *task_create(int real_id, unsigned long int work, int arrival)
 {
 	struct task *task;
 
@@ -300,16 +298,13 @@ struct task *task_create(int real_id, unsigned long int work, int arrival, unsig
 	task->hits = 0;
 	task->misses = 0;
 
-	task->percentiles_around_threshold = smalloc(sizeof(int) * 3);
-	for ( int i = 0; i < 3; i++ ) task->percentiles_around_threshold[i] = -1;
-
 	task->all_sets_accessed = smalloc(sizeof(int) * task->work);
 	task->all_pages_accessed = smalloc(sizeof(int) * task->work);
 	task->sets_accessed = map_create(map_compare_int);
 	task->pages_accessed = map_create(map_compare_int);
 	task->mem_accessed = map_create(map_compare_ulong_int);
 
-	task->p_table = page_table_create(task->tsid, highest_addr);
+	task->p_table = page_table_create(task->tsid, work);
 	// Initializing. 
 	for ( unsigned long int i = 0; i < work; i++ ) task->all_sets_accessed[i] = -1;
 
@@ -340,7 +335,7 @@ void task_set_realid(struct task *ts, int real_id)
  * @param ts   Target task.
  * @param time Arrival time.
  */
-int task_realid(const struct task *ts)
+int  task_realid(const struct task *ts)
 {
 	/* Sanity check. */
     assert(ts != NULL);
@@ -383,10 +378,11 @@ int task_arrivaltime(const struct task *ts)
  * @param ts           Target task.
  * @param waiting_time How much task has waited.
  */
-void task_set_waiting_time(struct task *ts, unsigned long int waiting_time)
+void task_set_waiting_time(struct task *ts, int waiting_time)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
+	assert(waiting_time >= 0);
 
 	ts->waiting_time = waiting_time;
 }
@@ -412,10 +408,11 @@ void task_set_workprocess(struct task *ts, unsigned long int work)
  * @param ts     Target task.
  * @param moment Moment when task entered.
 */
-void task_set_emoment(struct task *ts, unsigned long int moment)
+void task_set_emoment(struct task *ts, int moment)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
+	assert(moment >= 0);
 
 	ts->e_moment = moment;
 }
@@ -427,7 +424,7 @@ void task_set_emoment(struct task *ts, unsigned long int moment)
  * 
  * @returns Returns the last moment that a task entered in a core.
 */
-unsigned long int task_emoment(const struct task *ts)
+int task_emoment(const struct task *ts)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
@@ -442,27 +439,13 @@ unsigned long int task_emoment(const struct task *ts)
  * @param ts     Target task.
  * @param moment Moment when task entered.
 */
-void task_set_lmoment(struct task *ts, unsigned long int moment)
+void task_set_lmoment(struct task *ts, int moment)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
+	assert(moment >= 0);
 
 	ts->l_moment = moment;
-}
-
-/**
- * @brief Gets the last moment that a task left in a core. 
- * 
- * @param ts Target task.
- * 
- * @returns Returns the last moment that a task left in a core.
-*/
-unsigned long int task_lmoment(const struct task *ts)
-{
-	/* Sanity check. */
-	assert(ts != NULL);
-
-	return ts->l_moment;
 }
 
 /**
@@ -533,7 +516,20 @@ void task_set_memptr(struct task *ts, unsigned long int pos)
 	ts->memptr = pos;
 }
 
+/**
+ * @brief Gets the last moment that a task left in a core. 
+ * 
+ * @param ts Target task.
+ * 
+ * @returns Returns the last moment that a task left in a core.
+*/
+int task_lmoment(const struct task *ts)
+{
+	/* Sanity check. */
+	assert(ts != NULL);
 
+	return ts->l_moment;
+}
 
 
 /**
@@ -543,7 +539,7 @@ void task_set_memptr(struct task *ts, unsigned long int pos)
  * 
  * @returns Waiting time of a task.
  */
-unsigned long int task_waiting_time(const struct task *ts)
+int task_waiting_time(const struct task *ts)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
@@ -804,37 +800,19 @@ int map_compare_mem(void* addr1, void* addr2)
 	return (addr1_phy == addr2_phy);
 }
 
-void task_set_is_percentiles_around_threshold(struct task *ts, int position, int value)
-{
-	/* Sanity check. */
-	assert(ts != NULL);
-	assert(position >= 0);
-	assert(position < 3);
-	assert(value == 0 || value == 1);
-
-	ts->percentiles_around_threshold[position] = value;
-}
-
-int* task_percentiles_around_threshold(const struct task *ts)
-{
-	/* Sanity check. */
-	assert(ts != NULL);
-
-	return ts->percentiles_around_threshold;
-}
-
 /**
- * @brief Returns the structure (MAP) that counts the number of repeated sets in last WINSIZE.
+ * @brief Returns the total percentage of repeated sets in last WINSIZE.
  * 
  * @param ts      Target task.
  * @param winsize Winsize.
  * 
- * @returns MAP struct of repeated sets.
+ * @returns Total percentage of repeated sets.
  */
-map_tt task_hotness(struct task *ts, int winsize)
+double task_hotness(struct task *ts, int winsize)
 {
 	/* Sanity check. */
 	assert(ts != NULL);
+	int total_sum = 0;
 	if ( task_work_processed(ts) != 0 ) 
 	{
 
@@ -847,11 +825,18 @@ map_tt task_hotness(struct task *ts, int winsize)
 		for ( int i = 0; i < winsize; i++ )
 		{
 			int curr_set = ts->all_sets_accessed[ts->memptr - winsize + i];
-			map_insert(ts->sets_accessed, &curr_set);
+			map_insert(ts->mem_accessed, &curr_set);
 		}
-		return ts->sets_accessed;
+		
+		// Getting the number of appearences that each address had.
+		for ( int i = 0; i < map_size(ts->mem_accessed); i++ )
+		{
+			struct map_return *m_r = map_peek(ts->mem_accessed, i);
+			int num_obj = (int) m_r->num_obj;
+			total_sum += num_obj;
+		}
 	}
-	return NULL;
+	return (double) total_sum / winsize;
 }
 
 /**
@@ -1063,7 +1048,6 @@ void task_destroy(struct task *ts)
 	map_destroy(ts->pages_accessed);
 
 	array_destroy(ts->memacc);
-	free(ts->percentiles_around_threshold);
 	free(ts->all_sets_accessed);
 	free(ts->all_pages_accessed);
 	free(ts);

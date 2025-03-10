@@ -3,7 +3,6 @@
 #include <time.h>
 #include <stdbool.h>
 #include <math.h>
-#include <limits.h>
 
 #include <model.h>
 #include <core.h>
@@ -40,7 +39,7 @@ static inline int conflicts_finder_has(struct conflicts_finder *c_f, int cache_s
     {
         int *set = (int*) queue_peek(c_f->elements, i);
         // If found, break the loop
-        if ( *set == cache_set )
+        if ( *set == cache_set ) 
         {
             found = i;
             i = c_f->num_elements;
@@ -67,7 +66,7 @@ static inline void destroy_conflicts_finder(struct conflicts_finder *c_f)
  * @param bucket        Target bucket to be analyzed.
  * @param winsize       Ammount of accesses to be analyzed.
  * @param core_capacity Max number of tasks in a bucket.
- *
+ * 
  * @returns The total number of conflictant sets inter-tasks in target bucket.
  */
 static inline int conflicts_finder_bucket(struct queue *bucket, int winsize, int core_capacity)
@@ -85,10 +84,10 @@ static inline int conflicts_finder_bucket(struct queue *bucket, int winsize, int
         for ( int j = 0; j < queue_size(bucket); j++ )
         {
             task_tt ts = queue_peek(bucket, j);
-            if ( task_work_processed(ts) == 0 )
+            if ( task_work_processed(ts) == 0 ) 
                 continue;
             calc = true;
-
+            
             unsigned long int memptr = task_memptr(ts);
             int *task_accesses = task_lineacc(ts);
             int set = task_accesses[(memptr - winsize + i)];
@@ -101,7 +100,7 @@ static inline int conflicts_finder_bucket(struct queue *bucket, int winsize, int
                 queue_insert(c_f->elem_pos, &index);
                 queue_insert(c_f->elem_count, &incr_value);
             }
-            else
+            else 
             {
                 int *index = (int*) queue_peek(c_f->elem_pos, position);
                 int which_task = *index % core_capacity;
@@ -115,7 +114,7 @@ static inline int conflicts_finder_bucket(struct queue *bucket, int winsize, int
                 queue_change_elem(c_f->elem_pos, position, &new_index);
             }
 
-        }
+        }   
     }
 
     if (calc)
@@ -126,7 +125,7 @@ static inline int conflicts_finder_bucket(struct queue *bucket, int winsize, int
             int *conflicts = (int*) queue_peek(c_f->elem_count, i);
             num_conflicts += *conflicts - 1;
         }
-    }
+    }   
     destroy_conflicts_finder(c_f);
     return num_conflicts;
 }
@@ -137,10 +136,9 @@ static inline int conflicts_finder_bucket(struct queue *bucket, int winsize, int
 struct bucket
 {
     int num_tasks;
-    unsigned long int current_tasks_load;    /**< Current (bucket) load.                          */
-    unsigned long int current_tasks_waiting; /**< Current (bucket) accumulated waiting.           */
-    double current_conflicts;                /**< Percentage of conflicts in a bucket.            */
-    map_tt bucket_tasks_map_set_accesses;    /**< Maps and counts the frequency of sets accesses. */
+    unsigned long int current_tasks_load;    /**< Current (bucket) load.                */
+    unsigned long int current_tasks_waiting; /**< Current (bucket) accumulated waiting. */
+    double current_conflicts;                /**< Percentage of conflicts in a bucket.  */
 };
 
 static inline struct bucket* initialize_bucket()
@@ -150,15 +148,14 @@ static inline struct bucket* initialize_bucket()
     b->current_tasks_load = 0;
     b->current_tasks_waiting = 0;
     b->current_conflicts = 0.0;
-    b->bucket_tasks_map_set_accesses = map_create(map_compare_int);
     return b;
 }
+
 
 static inline void destroy_bucket(struct bucket *b)
 {
     /* Sanity check. */
     assert(b != NULL);
-    map_destroy(b->bucket_tasks_map_set_accesses);
     free(b);
 }
 
@@ -172,6 +169,7 @@ struct model
     int num_cores;           /**< Total number of cores in our simulation.                                                             */
     int core_capacity;       /**< Cores' capacity. Homogeneous simulation will be the same to all.                                     */
     int num_tasks;           /**< Current total number of tasks.                                                                       */
+    int num_intervals;       /**< How many intervals are we dividing our data.                                                         */
     int winsize;             /**< Tasks' last WINSIZE cache sets acesses.                                                              */
 
     int num_states;          /**< Total number of states in our model.                                                                 */
@@ -179,7 +177,8 @@ struct model
 
     double alpha;            /**< Train rate.                                                                                          */
     double gamma;            /**< Discout rate.                                                                                        */
-
+    double reward_penalty;   /**< Penalizes whenever the the model made an action that brought more conflicts than there were before.  */
+    
     double epsilon;          /**< Epsilon (E-greedy).                                                                                  */
     double eps_decay;        /**< Epsilon decrement per episode.                                                                       */
     double min_eps;          /**< Minimal Epsilon value (preventing errors).                                                           */
@@ -203,7 +202,6 @@ static inline void save_q_table(struct model *m, const char* filename)
     {
         fwrite(m->q_table[i], sizeof(double), m->num_actions, f);
     }
-    fwrite(m->q_table[TERMINAL_STATE_INDEX], sizeof(double), 1, f);
 
     fclose(f);
 }
@@ -221,7 +219,7 @@ static inline void load_q_table(struct model *m, const char* filename)
     for (int i = 0; i < m->num_states; i++)
     {
         int read_elements = fread(m->q_table[i], sizeof(double), m->num_actions, f);
-        assert((read_elements == m->num_actions) || (read_elements == 0) );
+        assert(read_elements == m->num_actions);
     }
 
     fclose(f);
@@ -251,13 +249,13 @@ static inline void load_eps(struct model *m, const char* filename)
     fclose(f);
 }
 
-/**
+/** 
  * @brief Initializes a new instance of a Q-Learning based Reinforcement Learning model.
- *
+ * 
  * @param num_cores     Total number of cores in our simulation.
  * @param core_capacity Cores' capacity.
  * @param winsize       Current winsize.
- *
+ * 
  * @returns New Reinforcement Learning model instance.
  */
 model_tt model_create(int num_cores, int core_capacity, int winsize)
@@ -269,16 +267,18 @@ model_tt model_create(int num_cores, int core_capacity, int winsize)
 
     m = (struct model*) malloc(sizeof(struct model));
     m->alpha = 0.5;
-    m->gamma = 0.5;
+    m->gamma = 0.9;
     m->eps_decay = 0.995;
-    m->min_eps = 0.01;
+    m->min_eps = 0.0;
+    m->reward_penalty = 0.2;
     m->winsize = winsize;
 
     m->num_actions = num_cores;
     m->num_cores = num_cores;
-
-    // m->num_states = pow(24, num_cores);
-    m->num_states = pow(8, num_cores) + 1;
+    // At the moment, 3 intervals only (Low, Medium, High). Preventing problems with state/action dimentions.
+    m->num_intervals = 3;
+    
+    m->num_states = pow((m->num_intervals), num_cores) + m->num_intervals;
 
     m->core_capacity = core_capacity;
     m->num_tasks = 0;
@@ -288,18 +288,18 @@ model_tt model_create(int num_cores, int core_capacity, int winsize)
 
     m->q_table = (double**) malloc(sizeof(double*) * m->num_states);
     for ( int i = 0; i < m->num_states; i++ )
-        m->q_table[i] = (double*) malloc(sizeof(double) * m->num_actions);
+        m->q_table[i] = (double*) malloc(sizeof(double) * m->num_actions); 
 
     // If file doesn't exists, it implies that the model wasn't trained before. So we must train it.
     FILE *f = fopen(Q_TABLE_FILE, "rb");
     if ( f != NULL )
     {
-        fclose(f);
+        fclose(f);  
         load_q_table(m, Q_TABLE_FILE);
         load_eps(m, Q_EPS_FILE);
         m->trained = true;
     }
-    else
+    else 
     {
         m->epsilon = 0.5;
         for ( int i = 0; i < m->num_states; i++ )
@@ -311,12 +311,12 @@ model_tt model_create(int num_cores, int core_capacity, int winsize)
         }
         m->trained = false;
     }
-    return (m);
+    return (m);    
 }
 
-/**
+/** 
  * @brief Updates the number of current tasks that will be scheduled by our model.
- *
+ * 
  * @param m         Target model.
  * @param num_tasks Current number of waiting tasks. Minimum = BATCHSIZE, Maximum = SUM(cores.capacity)
  */
@@ -330,14 +330,14 @@ void model_update_num_tasks(struct model *m, int num_tasks)
 
 /**
  * @brief Updates the Q-Table.
- *
+ * 
  * @param m          Target model.
  * @param state      Current State.
  * @param action     Action taken.
  * @param reward     Reward obtained.
  * @param next_state Next state.
  */
-static inline void update_q_table(struct model *m, int state, int action, double reward, int next_state)
+static inline void update_q_table(struct model *m, int state, int action, int reward, int next_state)
 {
     /* Sanity check. */
     assert(m != NULL);
@@ -353,27 +353,19 @@ static inline void update_q_table(struct model *m, int state, int action, double
         if ( m->q_table[next_state][i] > next_max )
         {
             next_max = m->q_table[next_state][i];
-        }
+        } 
     }
 
-
-    if ( next_state == TERMINAL_STATE_INDEX )
-    {
-        m->q_table[state][action] = old_value + m->alpha * (reward);
-    }
-    else
-    {
-        m->q_table[state][action] = old_value + m->alpha * (reward + m->gamma * next_max - old_value);
-    }
+    m->q_table[state][action] = old_value + m->alpha * (reward + m->gamma * next_max - old_value);
 }
 
 /**
  * @brief Calculates the current amount of conflicts in a specified bucket.
- *
+ * 
  * @param bucket  Target bucket.
  * @param core    Core related to target bucket.
  * @param winsize Simulation's winsize.
- *
+ * 
  * @returns Total conflicts
  */
 static inline double calc_perc_conflict(struct queue *bucket, struct core *core, int winsize)
@@ -399,122 +391,52 @@ static inline double calc_perc_conflict(struct queue *bucket, struct core *core,
 /**
  * @brief Calculates action's Penalty/Reward. It's measured as the total amount of new conflicts compared to last iteration total number of conflicts.
  * The desirable amount is closer to 0, second best is negative (which implies that, after new task insertion, the amount of conflicts were reduced).
- * The worse case is when the amount is increased, whenever this case happens, the model will receive a negative reward (penalty).
- *
+ * The worse case is when the amount is increased, whenever this case happens, the model will receive a negative reward (penalty). 
+ * 
  * @param m               Target model.
  * @param conflict_before Total ammount of conflicts before last bucket insertion.
  * @param index           Chosen bucket.
- *
+ * 
  * @returns Total reward.
  */
-static inline double calc_reward(struct model *m, double conflict_before, int index, struct task *ts)
+static inline double calc_reward(struct model *m, double conflict_before, int index)
 {
     /* Sanity check. */
     assert(m != NULL);
-    assert(ts != NULL);
-
-    double reward = conflict_before;
-    reward = 0.0;
-
-    // int *task_percentiles = task_percentiles_around_threshold(ts);
-    // int num_percentiles = 0;
-    // for ( int i = 0; i < 3; i ++ ) num_percentiles += task_percentiles[i];
-
-    // if ( (num_percentiles >= 2) && (m->buckets[index]->current_conflicts < conflict_before ) ) reward = 1;
-    // else if ( num_percentiles == 1 && (m->buckets[index]->current_conflicts < conflict_before ) ) reward = 0;
-    // else reward = -1;
-
-    // Checking percentiles majority (atleast 2 percentiles valid).
-    int *task_percentiles = task_percentiles_around_threshold(ts);
-    int controller = 0;
-    for ( int i = 0; i < 3; i++ ) controller += task_percentiles[i];
-    bool majority_percentiles_valid = controller > 1; /**< If atleast 2 percentiles (majority) are valid.  */
-
-    // Checking bucket saturation (Not saturaded = 0 - 60% total capacity. Saturated = 60 - 100% total capacity)
-    float b_saturation = (((float) m->buckets[index]->num_tasks) / m->core_capacity);
-    bool bucket_satured = b_saturation >= 0.80;
-
-
-    // Calculating average of tasks per bucket int current iteration.
-    float avg_tasks_per_bucket = 0.0f;
-    for ( int i = 0; i < m->num_cores; i++ ) avg_tasks_per_bucket += m->buckets[i]->num_tasks;
-    avg_tasks_per_bucket = avg_tasks_per_bucket / (float) m->num_cores;
-
-    // Checking if bucket number of tasks is above of current average (Not above, Above).
-    bool bucket_above_average = m->buckets[index]->num_tasks > avg_tasks_per_bucket;
-
-
-    //Se não majoritario || (acima da média e saturado) -> HORRIVEL, BOOO!!!
-    // if      ( !(majority_percentiles_valid) || (bucket_satured && bucket_above_average) ) reward = -1;
-    // // Se abaixo da média e não saturado -> Perfeito
-    // else if ( majority_percentiles_valid && !(bucket_satured) && !(bucket_above_average) ) reward =  1;
-    // // Se abaixo da média ou não saturado -> Meh.
-    // else                                                                                  reward =  0;
-
-
-    // double H = majority_percentiles_valid ? 2.0 : 0.0;
-    // double B = 0;
-    // if ( bucket_satured && bucket_above_average ) B = 2.0;
-    // else if ( !bucket_satured && bucket_above_average ) B = 1.0;
-
-    // reward = H - (0.2 * B);
-    // if ( !(bucket_satured) && !(bucket_above_average) && majority_percentiles_valid ) reward = 2;
-    // else if ( (!(bucket_satured) && !(bucket_above_average)) || majority_percentiles_valid ) reward = 1;
-    // else reward = -1;
-
-
-    // double w_bal = 1.0,
-    //        w_maj = 0.0;
-
-    // double reward_bal;
-    // if ( !(bucket_satured) && !(bucket_above_average) ) reward_bal = 2.0;
-    // else if ( !(bucket_satured) || !(bucket_above_average) ) reward_bal = 1.0;
-    // else reward_bal = 0.0;
-
-    // double reward_maj = (majority_percentiles_valid) ? 2.0 : 0.0;
-
-    // reward = (reward_bal * w_bal) + (reward_maj * w_maj);
-
-
-
-    // double reward_bal = 0.0,
-    //        reward_maj = 0.0;
-    // if ( !bucket_satured && !bucket_above_average ) reward_bal = 1.0;
-    // else if ( !bucket_satured || !bucket_above_average ) reward_bal = 0.5;
-    // else reward_bal = 0.0;
-
-    // if ( majority_percentiles_valid && reward_bal > 0 ) reward_maj = 1.0;
-    // else reward_maj = 0.0;
-
-    // reward = w_bal * reward_bal + w_maj * reward_maj;
-
-
-
-
-
-    // double w_bal = 0.8,
-    //        w_maj = 1.65;
-    double w_bal = 1.0,
-           w_maj = 2.0;
-
-    double score_bal;
-    if ( !bucket_satured && !bucket_above_average ) score_bal = 1.0;
-    else if ( !bucket_satured || !bucket_above_average ) score_bal = 0.5;
-    else score_bal = 0.0;
-
-    double score_maj = majority_percentiles_valid ? 1.0 : 0.0;
-    reward = (w_bal * score_bal) + (w_maj * score_maj);
-
+    double reward = 0.0;
+    double subtraction = m->buckets[index]->current_conflicts - conflict_before;
+    reward = ( (1 / 1 + (fabs(subtraction))) - (m->reward_penalty * fmax(0, subtraction)) );
     return reward;
+}
+
+// This is, currently, not being used. Leaving here 'cus might be useful in a near future.
+static inline double *calc_variance_lims(int num_acesses, int total_sets)
+{
+    /* Sanity check. */
+    assert(num_acesses > 0);
+    double *lims = smalloc(sizeof(double) * 2);
+    double mean = (double) num_acesses / total_sets;
+    double variance = 0.0;
+    // Lower lime =          First NUM_ACCESSES are 1,                 rest is 0.
+    variance = ( ( (pow((1 - mean), 2)) * num_acesses ) + ( (pow(mean, 2)) * (total_sets - num_acesses) ) );
+    variance /= total_sets;
+    lims[0] = variance;
+
+    // Upper lim = First position is NUM_ACCESSES,               rest is 0
+    variance = ( ( (pow(num_acesses - mean, 2)) ) + ( (pow(-mean, 2)) * (total_sets - 1) ));
+    variance /= total_sets;
+    lims[1] = variance;
+
+    return lims;
 }
 
 /**
  * @brief Gets the state index.
- *
- * @param m           Target model.
+ * 
+ * @param m           Target model. 
  * @param task        Current task to be scheduled.
  * @param cores       All cores in our simulation.
- *
+ * 
  * @returns Current State.
  */
 static inline int get_state_index(struct model *m, struct task *task, struct array *cores)
@@ -523,173 +445,32 @@ static inline int get_state_index(struct model *m, struct task *task, struct arr
     assert(m != NULL);
     assert(task != NULL);
     assert(cores != NULL);
+
+    double task_tl_perc = task_hotness(task, m->winsize);
+
     int index = 0;
-
-    // Calculating average of tasks per bucket int current iteration.
-    float avg_tasks_per_bucket = 0.0f;
-    for ( int i = 0; i < m->num_cores; i++ ) avg_tasks_per_bucket += m->buckets[i]->num_tasks;
-    avg_tasks_per_bucket = avg_tasks_per_bucket / (float) m->num_cores;
-
-    map_tt task_map = task_hotness(task, m->winsize);
-    int task_percentiles[3];
-
-    // Generating task's CDF.
-    if ( task_map != NULL )
+    for ( int i = 0; i < m->num_cores; i++ )
     {
-        // Find "highest" set accessed
-        int task_highest = -1;
-        int task_map_values[map_size(task_map)],
-            task_map_num_values[map_size(task_map)];
-
-        // Instead of sorting the accesses, I simply identify which is the "highest" set accessed, and them create an array of that size and index other accessed sets.
-        for ( int i = 0; i < map_size(task_map); i++ )
-        {
-            struct map_return *m_p = map_peek(task_map, i);
-            int *obj = (int*) m_p->obj;
-            task_map_values[i] = *obj;
-            task_map_num_values[i] = (int) m_p->num_obj;
-            if ( *obj > task_highest ) task_highest = *obj;
-        }
-        task_highest++;
-
-        int task_cdf[task_highest];
-
-        // Populating CDFs
-        for ( int i = 0; i < task_highest; i++ )
-            task_cdf[i] = 0;
-
-        for ( int i = 0; i < map_size(task_map); i++ )
-        {
-            task_cdf[task_map_values[i]] = task_map_num_values[i];
-        }
-
-        int task_iterator = 0;
-
-        // Getting the values for CDF, and percentiles (25, 50, 75).
-        for ( int i = 1; i < task_highest; i++ )
-        {
-            int accumulated_value = (int) ( (task_cdf[i - 1] + task_cdf[i]) / m->winsize ) * 100;
-            // printf("%d\n", accumulated_value);
-            task_cdf[i] = accumulated_value;
-            if ( accumulated_value >= (task_iterator * 25) ) task_percentiles[task_iterator++] = i;
-        }
-    }
-    else
-    {
-        for ( int i = 0; i < 3; i++ ) task_percentiles[i] = INT_MIN;
+        int b_conflict_interval = (int) round( (m->buckets[i]->current_conflicts) / (m->num_intervals) );
+        index += pow(b_conflict_interval, i);
     }
 
-    for ( int k = 0; k < m->num_cores; k++ )
-    {
-        int bucket_highest = -1,
-            bucket_num_accesses = 0;
-        map_tt bucket_map = m->buckets[k]->bucket_tasks_map_set_accesses;
-        int percentiles_around_threshold[3];
-
-        // Same as above, generating Bucket's CDF. The difference here is the fact that I need to iterate through all tasks in Bucket.
-        if ( map_size(bucket_map) > 0 )
-        {
-            int bucket_map_values[map_size(bucket_map)],
-                bucket_map_num_values[map_size(bucket_map)];
-
-            for ( int i = 0; i < map_size(bucket_map); i++ )
-            {
-                struct map_return *m_p = map_peek(bucket_map, i);
-                int *obj = (int*) m_p->obj;
-                bucket_map_values[i] = *obj;
-                bucket_map_num_values[i] = (int) m_p->num_obj;
-                if ( *obj > bucket_highest ) bucket_highest = *obj;
-                bucket_num_accesses += (int) m_p->num_obj;
-            }
-
-            bucket_highest++;
-
-            int bucket_cdf[bucket_highest];
-
-            for ( int i = 0; i < bucket_highest; i++ )
-                bucket_cdf[i] = 0;
-
-            for ( int i = 0; i < map_size(bucket_map); i++ )
-            {
-                bucket_cdf[bucket_map_values[i]] = bucket_map_num_values[i];
-            }
-
-            int bucket_iterator = 0;
-            int bucket_percentiles[3];
-
-            // Calculating CDF && finding percentiles
-            for ( int i = 1; i < bucket_highest; i++ )
-            {
-                int accumulated_value = (int) ( (bucket_cdf[i - 1] + bucket_cdf[i]) / bucket_num_accesses) * 100;
-                bucket_cdf[i] = accumulated_value;
-                if ( accumulated_value >= (bucket_iterator * 25) ) bucket_percentiles[bucket_iterator++] = i;
-            }
-
-            // Identifying if percentiles (25, 50, 75) are around threshold (15%)
-            for ( int i = 0; i < 3; i++ )
-            {
-                int task_percentile = task_percentiles[i];
-                int bucket_percentile = bucket_percentiles[i];
-                int margem = (int) task_percentile * 0.15;
-
-                if ( ((task_percentile - margem) > bucket_percentile) || ((task_percentile + margem) < bucket_percentile) )
-                {
-                    task_set_is_percentiles_around_threshold(task, i, 1);
-                    percentiles_around_threshold[i] = 1;
-                }
-                else
-                {
-                    task_set_is_percentiles_around_threshold(task, i, 0);
-                    percentiles_around_threshold[i] = 0;
-                }
-            }
-        }
-        // If there is no Task in Bucket, we must say that it valid.
-        else
-        {
-            for ( int i = 0; i < 3; i++ )
-            {
-                task_set_is_percentiles_around_threshold(task, i, 1);
-                percentiles_around_threshold[i] = 1;
-            }
-        }
-
-        // float bucket_perc_conflitcs = m->buckets[k]->current_conflicts;
-        // int foo = 0;
-        // if      ( bucket_perc_conflitcs < 0.33 ) foo = 0;
-        // else if ( bucket_perc_conflitcs < 0.66 ) foo = 1;
-        // else                                     foo = 2;
-
-
-        // int num_pow = 4 * (m->num_cores - (k + 1));
-        // index += ( (percentiles_around_threshold[0] * pow(2, num_pow)) + (percentiles_around_threshold[1] * pow(2, num_pow - 1 )) + (percentiles_around_threshold[2] * pow(2, num_pow - 2)) + ( foo * pow(3, num_pow - 3) ) );
-
-        // Checking percentiles majority (atleast 2 percentiles valid).
-        int controller = 0;
-        for ( int i = 0; i < 3; i++ ) controller += percentiles_around_threshold[i];
-        bool majority_percentiles_valid = controller > 1; /**< If atleast 2 percentiles (majority) are valid.  */
-
-        // Checking bucket saturation (Not saturaded = 0 - 60% total capacity. Saturated = 60 - 100% total capacity)
-        float b_saturation = (((float) m->buckets[k]->num_tasks) / m->core_capacity);
-        bool bucket_satured = b_saturation >= 0.80;
-
-        // Checking if bucket number of tasks is above of current average (Not above, Above).
-        bool bucket_above_average = m->buckets[k]->num_tasks > avg_tasks_per_bucket;
-
-        int num_pow = 3 * (m->num_cores - (k + 1));
-        // STATE = [MAJ (2), CONFLICTS_VALUE (3), CAPACITY_VALUE (3)]
-        index += ( ((majority_percentiles_valid) ? 1 : 0) * pow(2, num_pow) ) + ( ((bucket_satured) ? 1 : 0) * pow(2, num_pow - 1)) + ( ((bucket_above_average) ? 1 : 0) * pow(2, num_pow - 2) );
-    }
+    if ( task_tl_perc < 0.33 )
+        index += 0;
+    else if ( task_tl_perc < 0.66 )
+        index += 1;
+    else 
+        index += 2;
 
     return index;
 }
 
 /**
  * @brief Chooses which action is the best. Using E-Greedy (with E decrease per iteration).
- *
+ * 
  * @param m     Target model.
  * @param state Current state.
- *
+ * 
  * @returns Which action (bucket) task will be mapped to.
  */
 static inline int choose_action(struct model *m, int state)
@@ -702,7 +483,7 @@ static inline int choose_action(struct model *m, int state)
     if ( random_value < m->epsilon )
     {
         return rand () % m->num_actions;
-    } else
+    } else 
     {
         double best_action = m->q_table[state][0];
         int max_index = 0;
@@ -718,29 +499,9 @@ static inline int choose_action(struct model *m, int state)
     }
 }
 
-static inline int choose_action2(struct model *m, int state)
-{
-    /* Sanity check. */
-    assert(m != NULL);
-    assert(state >= 0);
-
-
-    double best_action = m->q_table[state][0];
-    int max_index = 0;
-    for ( int i = 1; i < m->num_actions; i++ )
-    {
-        if ( m->q_table[state][i] > best_action )
-        {
-            best_action = m->q_table[state][i];
-            max_index = i;
-        }
-    }
-    return max_index;
-}
-
 /**
  * @brief Populates buckets with task's attributes.
- *
+ * 
  * @param m       Target model.
  * @param buckets All buckets.
  * @param core    Core related to bucket
@@ -758,16 +519,6 @@ static inline void populate_bucket(struct model *m, struct array *buckets, struc
     // Populating the simulation's buckets.
     queue_insert(array_get(buckets, index), t);
 
-    // Saving last WINSIZE accesses into map
-    if ( task_work_processed(t) > 0)
-    {
-        for ( int i = 0; i < m->winsize; i++ )
-        {
-            int curr_set = task_lineacc(t)[task_memptr(t) - m->winsize + i];
-            map_insert(m->buckets[index]->bucket_tasks_map_set_accesses, &curr_set);
-        }
-    }
-
     // Populating the model's buckets.
     m->buckets[index]->current_tasks_load += task_work_left(t);
     m->buckets[index]->current_tasks_waiting += task_waiting_time(t);
@@ -777,7 +528,7 @@ static inline void populate_bucket(struct model *m, struct array *buckets, struc
 
 /**
  * @brief Cleans buckets.
- *
+ * 
  * @param m Target model.
  */
 static inline void clean_buckets(struct model *m)
@@ -790,53 +541,19 @@ static inline void clean_buckets(struct model *m)
         m->buckets[i]->current_tasks_load = 0;
         m->buckets[i]->current_tasks_waiting = 0;
         m->buckets[i]->current_conflicts = 0.0;
-
-        // Re-creating
-        map_destroy(m->buckets[i]->bucket_tasks_map_set_accesses);
-        m->buckets[i]->bucket_tasks_map_set_accesses = map_create(map_compare_int);
     }
 }
 
 /**
  * @brief Trains one episode of our RL Model. The idea is to find the best set for each bucket (and, consequently, for each core).
  *        The filled buckets will be sent to be the input of the desired SCHEDULER.
- *
+ * 
  * @param m       Target Model.
  * @param cores   Simulation's cores.
  * @param buckets Target array of buckets.
  * @param tasks   Target tasks waiting to be scheduled.
 */
-// void model_train(struct model *m, struct array *cores, struct array *buckets, struct queue *tasks)
-// {
-//     /* Sanity check. */
-//     assert(m != NULL);
-//     assert(cores != NULL);
-//     assert(buckets != NULL);
-//     assert(tasks != NULL);
-
-//     for ( int t = 0; queue_size(tasks) > 0; t++ )
-//     {
-//         task_tt task = queue_remove(tasks);
-//         int state = get_state_index(m, task, cores);
-//         int action = choose_action(m, state);
-//         double conflicts_before = m->buckets[action]->current_conflicts;
-//         populate_bucket(m, buckets, array_get(cores, action), task, action);
-//         model_update_num_tasks(m, queue_size(tasks));
-//         double reward = calc_reward(m, conflicts_before, action, task);
-
-//         // int reward = calc_reward(m, action, task);
-//         int next_state = 0;
-//         if ( queue_size(tasks) != 0)
-//             next_state = get_state_index(m, queue_peek(tasks, 0), cores);
-//         else
-//             next_state = TERMINAL_STATE_INDEX;
-
-//         update_q_table(m, state, action, reward, next_state);
-//     }
-
-//     clean_buckets(m);
-// }
-void model_train(struct model *m, struct array *cores, struct array *buckets, struct queue *tasks)
+void model_train(struct model *m, struct array *cores, struct array *buckets, struct queue *tasks)   
 {
     /* Sanity check. */
     assert(m != NULL);
@@ -846,26 +563,33 @@ void model_train(struct model *m, struct array *cores, struct array *buckets, st
 
     for ( int t = 0; queue_size(tasks) > 0; t++ )
     {
-        task_tt task = queue_remove(tasks);
+        task_tt task = queue_remove(tasks); 
         int state = get_state_index(m, task, cores);
-        // int action = choose_action2(m, state);
-        int action = choose_action2(m, state);
+        int action = choose_action(m, state);
+        
+        double conflicts_before = m->buckets[action]->current_conflicts;
         populate_bucket(m, buckets, array_get(cores, action), task, action);
         model_update_num_tasks(m, queue_size(tasks));
 
+        int reward = calc_reward(m, conflicts_before, action);
+        int next_state = 0;
+        if ( queue_size(tasks) != 0)
+            next_state = get_state_index(m, queue_peek(tasks, 0), cores);
+        else 
+            next_state = get_state_index(m, task, cores);
 
+        update_q_table(m, state, action, reward, next_state);
     }
-
     clean_buckets(m);
 }
 
 /**
  * @brief Destroys an existing Reinforcement Learning model.
- *
+ * 
  * @param m Desired instance.
  */
 void model_destroy(struct model *m)
-{
+{ 
     /* Sanity check. */
     assert(m != NULL);
     save_q_table(m, Q_TABLE_FILE);

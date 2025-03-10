@@ -12,10 +12,10 @@
 	 * @brief Scheduler definitions.
 	 */
 	/**@{*/
-    #define QUANTUM             1000 /**< Round-Robin Quantum (cycles). */
-    #define MISS_PENALTY          20 /**< Cache miss penalty (cycles).  */
-    #define PAGE_FAULT_PENALTY  5000 /**< Page fault penalty (cycles).  */
-	// /**@}*/
+    #define QUANTUM              10000 /**< Round-Robin Quantum (cycles). */
+	#define MISS_PENALTY           500 /**< Cache miss penalty (cycles).  */
+    #define PAGE_FAULT_PENALTY    5000 /**< Page fault penalty (cycles).  */
+	/**@}*/
 
     /**
      * @brief Task process strategy.

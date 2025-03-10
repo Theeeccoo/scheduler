@@ -109,7 +109,7 @@ struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, i
 		n = floor(histogram_class(h, i)*ntasks);
 
 		for (int j = 0; j < n; j++){
-			queue_insert(w->tasks, task_create(k++, workload_skewness(i, histogram_nclasses(h), skewness), 0, 0));
+			queue_insert(w->tasks, task_create(k++, workload_skewness(i, histogram_nclasses(h), skewness), 0));
 		}
 	}
 
@@ -124,7 +124,7 @@ struct workload *workload_create(histogram_tt h, histogram_tt a, int skewness, i
 	for (int i = k; i < ntasks; i++)
 	{
 		int j = rand()%histogram_nclasses(h);
-		queue_insert(w->tasks, task_create(k++, workload_skewness(j, histogram_nclasses(h), skewness), 0, 0));
+		queue_insert(w->tasks, task_create(k++, workload_skewness(j, histogram_nclasses(h), skewness), 0));
 	}
 
 	/* ARRIVAL TIME. */
@@ -555,9 +555,8 @@ struct workload *workload_read(FILE *infile, int ncores)
 	/* Write workload to file. */
 	int real_id   = 0,
 		arrivtime = 0;
-	unsigned long int addr         = 0,
-					  highest_addr = 0,
-	                  workload     = 0;
+	unsigned long int addr      = 0,
+	                  workload  = 0;
 	for (int i = 0; i < ntasks; i++) {
 		assert(fscanf(infile, "%d", &real_id) == 1);
 		assert(fscanf(infile, "%lu", &workload) == 1);
@@ -568,12 +567,11 @@ struct workload *workload_read(FILE *infile, int ncores)
 		for ( unsigned long int j = 0; j < workload; j++ )
 		{
 			assert(fscanf(infile, "%lu\n", &addr) == 1);
-			if ( addr > highest_addr ) highest_addr = addr;
 			struct mem *m = mem_create(addr);
 			array_set(t_addr, j, m);
 
 		}
-		task_tt ts = task_create(real_id, workload, arrivtime, highest_addr);
+		task_tt ts = task_create(real_id, workload, arrivtime);
 		task_set_memacc(ts, t_addr);
 
 		workload_set_task(w, i, ts);

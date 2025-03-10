@@ -20,7 +20,7 @@ static struct
 
 /**
  * @brief Initializes the SRJF scheduler.
- *
+ * 
  * @param workload  Target workload.
  * @param batchsize Batch size.
 */
@@ -40,7 +40,7 @@ void scheduler_srjf_init(workload_tt workload, int batchsize)
     scheddata.initialized = 1;
 }
 
-/**
+/** 
  * @brief Finalizes the SRJF scheduler.
 */
 void scheduler_sjrf_end(void)
@@ -50,10 +50,10 @@ void scheduler_sjrf_end(void)
 
 /**
  * @brief SRJF scheduler. The first BATCHSIZE tasks will be scheduled to the first free core (tasks are sorted based on their remaining work)
- *
+ * 
  * @param c     Target core.
  * @param tasks Mapped tasks to current core.
- *
+ * 
  * @returns Number of scheduled tasks.
 */
 int scheduler_srjf_sched(core_tt c, queue_tt tasks)
@@ -77,10 +77,12 @@ int scheduler_srjf_sched(core_tt c, queue_tt tasks)
 		wsize += task_work_left(curr_task);
 		n++;
 	}
+	
+	/* If any task was scheduled, global 'time' must increase based on number of scheduled tasks. */
+    g_iterator += ( n > 0 ) ? n : 1;
+	
 
-
-
-	return n;
+	return (n);
 }
 
 /**

@@ -29,7 +29,7 @@
     /**@}*/
 
     /* Forward definitions. */
-    extern int* g_iterator;
+    extern int g_iterator;
 
     extern void simsched(workload_tt, array_tt, const struct scheduler*, const struct processer*, int, int, int);
 #endif /* SCHEDULER_H_ */
