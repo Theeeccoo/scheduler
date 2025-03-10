@@ -4,6 +4,9 @@
 #include <math.h>
 #include <float.h>
 
+// TODO remover esse include aqui
+#include <stdio.h>
+
 #include <mylib/queue.h>
 #include <kmeans.h>
 #include <task.h>
@@ -332,6 +335,7 @@ void kmeans_initialize_medoids(struct kmeans *k, int **me, int **vectors)
                 me[i][j] = vectors[next_medoid_idx][j];
         }
     }
+
 }
 
 /**
@@ -351,8 +355,8 @@ void kmeans_start(struct kmeans *k, struct array *buckets, queue_tt tasks, int *
     assert(tasks != NULL);
     assert(vectors != NULL);
     assert(num_vectors >= 0);
-
     kmeans_set_nvectors(k, num_vectors);
+
     int **medoids = (int**) malloc(sizeof(int*) * k->n_clusters);
     int **old_medoids = (int**) malloc(sizeof(int*) * k->n_clusters);
     int *labels= (int*) malloc(sizeof(int) * k->n_vectors);
@@ -369,8 +373,7 @@ void kmeans_start(struct kmeans *k, struct array *buckets, queue_tt tasks, int *
     }
 
     kmeans_initialize_medoids(k, medoids, vectors);
-
-
+    
     for ( int iterations = 0; iterations < k->max_iter; iterations++ )
     {   
         /* Saving old medoids. */
@@ -424,6 +427,33 @@ void min_max_normalize(int **v1, double **normalized, int n_vectors, int vector_
         }
     }
 }
+
+// float dtw_distance(double *v1, double *v2, int size) {
+
+//     float prev[size + 1];
+//     float curr[size + 1];
+
+//     // Inicializar a primeira linha como INFINITY
+//     for (int i = 0; i <= size; i++) {
+//         prev[i] = INFINITY;
+//     }
+//     prev[0] = 0;
+
+//     for (int i = 1; i <= size; i++) {
+//         curr[0] = INFINITY; // Primeiro elemento da linha atual
+//         for (int j = 1; j <= size; j++) {
+//             float cost = fabs(v1[i - 1] - v2[j - 1]);
+//             curr[j] = cost + fmin(fmin(prev[j], curr[j - 1]), prev[j - 1]);
+//         }
+
+//         // Copiar linha atual para a anterior
+//         for (int j = 0; j <= size; j++) {
+//             prev[j] = curr[j];
+//         }
+//     }
+
+//     return prev[size];
+// }
 
 double dtw_distance(double *v1, double *v2, int size)
 {

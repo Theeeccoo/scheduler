@@ -43,9 +43,6 @@ simsched:                         \
 		simsched/sched_itr.o      \
 		simsched/fcfs.o           \
 		simsched/srtf.o           \
-		simsched/sca.o            \
-		simsched/non_preemptive.o \
-		simsched/preemptive.o     \
 		simsched/rr_preemptive.o  \
 		simsched/mmu.o            \
 		simsched/ram.o            \

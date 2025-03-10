@@ -109,6 +109,7 @@ void *array_get(const struct array *a, unsigned long int idx)
 	assert(a != NULL);
 	assert((idx < a->size));
 
+
 	return (a->elements[idx]);
 }
 

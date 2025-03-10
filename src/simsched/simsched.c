@@ -18,9 +18,9 @@
 #include <workload.h>
 
 /**
- * @brief Global iterator.
+ * @brief Global iterator per Core. It implies that each core will have a global iterator. 
 */
-int g_iterator = 0;
+int* g_iterator;
 
 /**
  * @brief Ready cores.
@@ -37,7 +37,7 @@ static queue_tt processing;
  */
 static queue_tt running;
 
-void sort_ascending(unsigned long int *a, int nelements, unsigned long int *m, unsigned long int *ph, unsigned long int *pf, unsigned long int *h, unsigned long int *mi, float *sl, unsigned long int *ids)
+void sort_ascending(unsigned long int *a, int nelements, int *m, unsigned long int *ph, unsigned long int *pf, unsigned long int *h, unsigned long int *mi, float *sl, int *ids)
 {
 	/* Sanity check. */
 	assert(a != NULL);
@@ -57,15 +57,16 @@ void sort_ascending(unsigned long int *a, int nelements, unsigned long int *m, u
 			if ( a[j] > a[i] )
 			{
 				unsigned long int tmp; /* Temporary data. */
+				int tmpi;
 				float tmpf;
 
 				tmp = a[i];
 				a[i] = a[j];
 				a[j] = tmp;
 
-				tmp = m[i];
+				tmpi = m[i];
 				m[i] = m[j];
-				m[j] = tmp;
+				m[j] = tmpi;
 
 				tmp = ph[i];
 				ph[i] = ph[j];
@@ -87,9 +88,9 @@ void sort_ascending(unsigned long int *a, int nelements, unsigned long int *m, u
 				sl[i] = sl[j];
 				sl[j] = tmpf;
 
-				tmp = ids[i];
+				tmpi = ids[i];
 				ids[i] = ids[j];
-				ids[j] = tmp;
+				ids[j] = tmpi;
 			}
 		}
 	}
@@ -166,19 +167,18 @@ static void simsched_dump(array_tt cores, workload_tt w)
 	stddev = sqrt(stddev/(ncores));
 
 	/** Calculating Metrics */
-	unsigned long int ids[ntasks],                 //
-		              map[ntasks],                 // 
-		              waiting_times[ntasks],       //    
-					  task_page_hits[ntasks],	   // Tasks' metrics
-					  task_page_faults[ntasks],    //   
-		              task_hits[ntasks],           //
-		              task_misses[ntasks] ,        //
-		              percentile_waitingtime = 0;
+	int ids[ntasks],                 //
+		map[ntasks];                 // 
+	unsigned long int waiting_times[ntasks],       //    
+					   task_page_hits[ntasks],	   // Tasks' metrics
+					   task_page_faults[ntasks],   //   
+		               task_hits[ntasks],          //
+		               task_misses[ntasks];        //
+		               
 	int k = 0;
-	float percentile_slowdown   = 0;
+	
 	float task_slowdown[ntasks];
 
-	double percentile_index = 0.0f;
 	for ( k = 0; k < ntasks; k++ )
 	{
 		task_tt curr_task = queue_peek(workload_fintasks(w), k);
@@ -194,20 +194,16 @@ static void simsched_dump(array_tt cores, workload_tt w)
 
 	sort_ascending(waiting_times, ntasks, map, task_page_hits, task_page_faults, task_hits, task_misses, task_slowdown, ids);
 
-	
+	// printf("\n\n\n\n\n\nDepois\n");
 	/** Print statistics. */
 	// Mapping Task id with its corresponding accumulative waiting_time, cache hits and cache misses.
 	for ( int i = 0; i < k; i++)
 	{
-		printf("%3lu | %3lu | %10lu | %5lu %5lu | %5lu %5lu | %lf\n", ids[i], map[i], waiting_times[i], task_page_hits[i], task_page_faults[i], task_hits[i], task_misses[i], task_slowdown[i]);
+		// printf("%3lu | %3lu | %10lu | %5lu %5lu | %5lu %5lu | %lf\n", ids[i], map[i], waiting_times[i], task_page_hits[i], task_page_faults[i], task_hits[i], task_misses[i], task_slowdown[i]);
+		printf("Task info: %d %d %lu %lu %lu, %lu, %lu, %lf\n", ids[i], map[i], waiting_times[i], task_hits[i], task_misses[i], task_page_hits[i] ,task_page_faults[i],task_slowdown[i]);
 	}
 	one_sort_asceding(task_slowdown, ntasks);
 	
-	percentile_index = (0.99 * ntasks) - 1;
-		
-	rounded_index = round(percentile_index);
-	percentile_waitingtime = ( percentile_index == rounded_index ) ? (waiting_times[rounded_index] + waiting_times[rounded_index + 1]) / 2 : waiting_times[rounded_index];
-	percentile_slowdown = ( percentile_index == rounded_index ) ? ( task_slowdown[rounded_index] + task_slowdown[rounded_index + 1] ) / 2 : task_slowdown[rounded_index];
 	unsigned long int sum = 0;
 	for ( int i = 0; i < queue_size(workload_fintasks(w)); i++ )
 	{
@@ -224,8 +220,10 @@ static void simsched_dump(array_tt cores, workload_tt w)
 	unsigned long int total_workload_unbalancement = 0;
 	int total_ntasks_unbalancement = 0;
 	int total_cachemiss_unbalancement = 0;
+	// printf("Total Unbalancement\n");
 	for ( int i = 1; i < num_itr; i++ )
 	{
+		// printf("Itr %d: ", i);
 		unsigned long int wrk_diff = 0;
 		int ntasks_diff = 0,
 		    cachemiss_diff = 0;
@@ -253,7 +251,9 @@ static void simsched_dump(array_tt cores, workload_tt w)
 				ntasks_diff += abs(all_ntasks[j] - all_ntasks[k]);
 				cachemiss_diff += abs(all_cachemiss[j] - all_cachemiss[k]);
 			}
+			// printf("\n\t(Core) %d - (Num. Tasks) %d - (Total Workload) %ld", j, all_ntasks[j], all_wrk[j]);
 		}
+		// printf("\n");
 		total_workload_unbalancement += wrk_diff;
 		total_ntasks_unbalancement += ntasks_diff;
 		total_cachemiss_unbalancement += cachemiss_diff;
@@ -272,15 +272,32 @@ static void simsched_dump(array_tt cores, workload_tt w)
 		cache_miss += core_miss(array_get(cores, i));
 	}
 
+	unsigned long int percentile_waitingtime_99 = 0,
+	                  percentile_waitingtime_50 = 0;
+	float percentile_slowdown_99 = 0,
+	      percentile_slowdown_50 = 0;
+	double percentile_index = 0.0f;
+	percentile_index = (0.50 * ntasks) - 1;
+	rounded_index = round(percentile_index);
+	percentile_waitingtime_50 = ( percentile_index == rounded_index ) ? (waiting_times[rounded_index] + waiting_times[rounded_index + 1]) / 2 : waiting_times[rounded_index];
+	percentile_slowdown_50 = ( percentile_index == rounded_index ) ? ( task_slowdown[rounded_index] + task_slowdown[rounded_index + 1] ) / 2 : task_slowdown[rounded_index];
+
+	percentile_index = (0.99 * ntasks) - 1;
+	rounded_index = round(percentile_index);
+	percentile_waitingtime_99 = ( percentile_index == rounded_index ) ? (waiting_times[rounded_index] + waiting_times[rounded_index + 1]) / 2 : waiting_times[rounded_index];
+	percentile_slowdown_99 = ( percentile_index == rounded_index ) ? ( task_slowdown[rounded_index] + task_slowdown[rounded_index + 1] ) / 2 : task_slowdown[rounded_index];
+
 	printf("waiting time sum: %lu\n", sum);
-	printf("99th Percentile Waiting Time: %ld\n", percentile_waitingtime);
-	printf("99th Percentile Tasks' Slowdown: %f\n", percentile_slowdown);
+	printf("50th Percentile Waiting Time: %ld\n", percentile_waitingtime_50);
+	printf("50th Percentile Tasks' Slowdown: %f\n", percentile_slowdown_50);
+	printf("99th Percentile Waiting Time: %ld\n", percentile_waitingtime_99);
+	printf("99th Percentile Tasks' Slowdown: %f\n", percentile_slowdown_99);
 	printf("Total page hits: %lu - Total page faults: %lu\n", page_hit, page_fault);
 	printf("Total cache hits: %lu - Total cache misses: %lu\n", cache_hit, cache_miss);
 	printf("Total Unbalancement: %lu\n", total_workload_unbalancement);
-	printf("Total Workload Unbalancement: %lu\n", total_workload_unbalancement);
-	printf("Total Number of Tasks Unbalancement: %d\n", total_ntasks_unbalancement);
-	printf("Total Cache Miss Unbalancement: %d\n", total_cachemiss_unbalancement);
+	// printf("Total Workload Unbalancement: %lu\n", total_workload_unbalancement);
+	// printf("Total Number of Tasks Unbalancement: %d\n", total_ntasks_unbalancement);
+	// printf("Total Cache Miss Unbalancement: %d\n", total_cachemiss_unbalancement);
 	printf("time: %lu\n", max);
 	printf("cost: %lu\n", max*ncores);
 	printf("performance: %ld\n", total/max);
@@ -322,29 +339,70 @@ static void threads_join(void)
 }
 
 /**
- * @brief Chooses a core to run next.
+ * @brief Chooses a core to run next. 
+ * If all cores are in the same "global iterator", we choose randomly, otherwise, we choose the one that has the least.
  *
- * @param Target core queue.
+ * @param Target     core queue.
+ * @param g_iteratro
  *
  * @returns The next core to run.
  */
-static core_tt choose_core(queue_tt q)
+static core_tt choose_core(queue_tt q, int* g_iterator)
 {
-	core_tt t;
+	core_tt t = NULL;
 	/* Sanity check. */
 	assert(q != NULL);
 	assert(!queue_empty(q));
+	assert(g_iterator != NULL);
 
-	do
+	// Checking if all cores are at the same (global) time
+	bool all_cores_at_same_time = true;
+	int last_global_time = 0;
+	for ( int i = 0; i < queue_size(q); i++ ) 
 	{
-		t = queue_remove(q);
+		int core_id = core_getcid((core_tt) queue_peek(q, i));
+		if ( g_iterator[core_id] != last_global_time ) 
+		{ 
+			all_cores_at_same_time = false; 
+			i = queue_size(q); 
+		}
+		last_global_time = g_iterator[core_id];
+	}
 
-		if (rand()%2)
-			break;
 
-		queue_insert(q, t);
-	} while (!queue_empty(q));
+	if ( all_cores_at_same_time )
+	{
+		do
+		{
+			t = queue_remove(q);
 
+			if (rand()%2)
+				break;
+
+			queue_insert(q, t);
+		} while (!queue_empty(q));
+	}
+	else 
+	{
+		int position = 0;
+		int q_size = queue_size(q);
+		int least_global_time = 0;
+		for ( int i = 0; i < q_size; i++ ) 
+		{
+			int core_id = core_getcid((core_tt) queue_peek(q, i));
+			if ( g_iterator[core_id] < least_global_time ) 
+			{ 
+				least_global_time = g_iterator[core_id]; 
+				position = i;
+			}
+		}
+		for ( int i = 0; i < q_size; i++ )
+		{
+			if ( i != position ) queue_insert(q, queue_remove(q));
+			else                 t = (core_tt) queue_remove(q);
+		}
+		
+	}
 	return (t);
 }
 
@@ -381,49 +439,117 @@ static void populate_queues_opt(struct workload *w, array_tt all_cores, int ncor
 	
 
 	bool keep_going = true;
+	// bool task_is_orphan = false;
 	
 	// Nothing to see here
 	if ( waiting_tasks_size == 0 && orphan_tasks_size == 0 ) keep_going = false;
 
 	while( keep_going )
 	{
-		int min_tasks_assigned = INT_MAX,
-	    	min_core_pos = 0;
-		keep_going = false;
+		unsigned long int min_workload_assigned = UINT_MAX;
+		int min_core_pos = 0;
 		waiting_tasks_size = queue_size(waiting_tasks);
 		orphan_tasks_size = queue_size(orphan_tasks);
 
-		// If there are still any task left
-		if ( waiting_tasks_size != 0 || orphan_tasks_size != 0 )
-		{	
-			// Iterate through all cores in order to find which is the one that has less tasks assigned to (but making sure that it don't surpass core's maximum capacity).
+		keep_going = waiting_tasks_size != 0 || orphan_tasks_size != 0;
+		if ( keep_going )
+		{
+			keep_going = false;
+			// There are prettier ways to find core's currently total workload, but doing this anyways.
 			for ( int i = 0; i < ncores; i++ )
 			{
 				core_tt core = (core_tt) array_get(all_cores, i);
-				queue_tt core_tasks = (queue_tt) array_get(workload_arrtasks(w), core_getcid(core)); 
-				int num_tasks_queue = queue_size(core_tasks);
-				if ( num_tasks_queue < core_capacity(core) )
+				queue_tt core_tasks = (queue_tt) array_get(workload_arrtasks(w), core_getcid(core));
+				// If core reached maximum capacity we must ignore it.
+				if ( !(queue_size(core_tasks) < core_capacity(core)) ) continue;
+
+				keep_going = true;
+				unsigned long int core_current_total_workload = 0;
+				for ( int i = 0; i < queue_size(core_tasks); i++ ) core_current_total_workload += task_work_left((task_tt) queue_peek(core_tasks, i));
+				if ( core_current_total_workload <= min_workload_assigned )
 				{
-					if ( num_tasks_queue < min_tasks_assigned )
-					{
-						min_tasks_assigned = num_tasks_queue;
-						min_core_pos = i;
-						keep_going = true;
-					}
+					min_workload_assigned = core_current_total_workload;
+					min_core_pos = i;	
 				}
 			}
-			
-			if ( keep_going )
+
+			// If any core was found
+			if ( keep_going ) 
 			{
 				queue_tt core_tasks = (queue_tt) array_get(workload_arrtasks(w), core_getcid(array_get(all_cores, min_core_pos)));
-				if ( orphan_tasks_size > 0 )
-					queue_insert(core_tasks, queue_remove(orphan_tasks));
-				else
-					queue_insert(core_tasks, queue_remove(waiting_tasks));
+				if ( orphan_tasks_size > 0 ) queue_insert(core_tasks, queue_remove(orphan_tasks));
+				else queue_insert(core_tasks, queue_remove(waiting_tasks));
+			}
+			
+			// if ( orphan_tasks_size > 0 )
+			// {
+			// 	next_task = queue_remove(orphan_tasks);
+			// 	task_is_orphan = true;
+			// }
+			// else
+			// {
+			// 	next_task = queue_remove(waiting_tasks);
+			// 	task_is_orphan = false;
+			// }
+
+			// printf("%d\n", task_gettsid(next_task));
+			// // There are prettier ways to find core's currently total workload, but doing this anyways.
+			// for ( int i = 0; i < ncores; i++ )
+			// {
+			// 	unsigned long int core_current_total_workload = 0;
+			// 	core_tt core = (core_tt) array_get(all_cores, i);
+			// 	queue_tt core_tasks = (queue_tt) array_get(workload_arrtasks(w), core_getcid(core)); 
+			// 	for ( int i = 0; i < queue_size(core_tasks); i++ ) core_current_total_workload += task_work_left(queue_peek(core_tasks, i));
+			// 	if ( queue_size(core_tasks) < core_capacity(core) )
+			// 	{
+			// 		if ( core_current_total_workload < min_workload_assigned )
+			// 		{
+			// 			min_workload_assigned = core_current_total_workload;
+			// 			min_core_pos = i;
+			// 			keep_going = true;
+			// 		}
+			// 	}
+			// }
+			
+			// // If any core was found
+			// if ( keep_going ) queue_insert((queue_tt) array_get(workload_arrtasks(w), min_core_pos), next_task);
+			// else
+			// {
+			// 	if ( task_is_orphan ) queue_insert(orphan_tasks, next_task);
+			// 	else queue_insert(waiting_tasks, next_task);
+			// }
+		}
+		// // If there are still any task left
+		// if ( waiting_tasks_size != 0 || orphan_tasks_size != 0 )
+		// {	
+		// 	// Iterate through all cores in order to find which is the one that has less tasks assigned to (but making sure that it don't surpass core's maximum capacity).
+		// 	for ( int i = 0; i < ncores; i++ )
+		// 	{
+		// 		core_tt core = (core_tt) array_get(all_cores, i);
+		// 		queue_tt core_tasks = (queue_tt) array_get(workload_arrtasks(w), core_getcid(core)); 
+		// 		int num_tasks_queue = queue_size(core_tasks);
+		// 		if ( num_tasks_queue < core_capacity(core) )
+		// 		{
+		// 			if ( num_tasks_queue < min_tasks_assigned )
+		// 			{
+		// 				min_tasks_assigned = num_tasks_queue;
+		// 				min_core_pos = i;
+		// 				keep_going = true;
+		// 			}
+		// 		}
+		// 	}
+			
+		// 	if ( keep_going )
+		// 	{
+		// 		queue_tt core_tasks = (queue_tt) array_get(workload_arrtasks(w), core_getcid(array_get(all_cores, min_core_pos)));
+		// 		if ( orphan_tasks_size > 0 )
+		// 			queue_insert(core_tasks, queue_remove(orphan_tasks));
+		// 		else
+		// 			queue_insert(core_tasks, queue_remove(waiting_tasks));
 
 				
-			}
-		}
+		// 	}
+		// }
 	}
 
 }
@@ -434,8 +560,9 @@ static void populate_queues_opt(struct workload *w, array_tt all_cores, int ncor
  * @param w       Target workload
  * @param winsize Window size of memory accesses
  * @param k       Target KMeans model.
+ * @param cores   All cores in our simulation
  */
-static void group(struct workload *w, int winsize, struct kmeans *k)
+static void group(struct workload *w, int winsize, struct kmeans *k, array_tt cores)
 {
 	/* Sanity check. */
 	assert(w != NULL);
@@ -443,28 +570,54 @@ static void group(struct workload *w, int winsize, struct kmeans *k)
 	assert(winsize >= 0);
 
 
-	array_tt all_tasks = workload_arrtasks(w);
-	// Getting the second-from-last queue of tasks (where all tasks that were processed are)
-	queue_tt tasks = (queue_tt) array_get(all_tasks, array_size(all_tasks) - 2);
-	int tasks_size = queue_size(tasks);
+	array_tt all_buckets = workload_arrtasks(w);
+	/* Orphan tasks. Tasks that were processed, atleast once, and are waiting for a free core to be processed again. */
+	queue_tt orphan_tasks = (queue_tt) array_get(all_buckets, array_size(all_buckets) - 2);
+	/* Waiting tasks. Tasks that were not processed before and are waiting for a free core to be processed. */
+	queue_tt waiting_tasks = (queue_tt) array_get(all_buckets, array_size(all_buckets) - 1);
+
+	int total_capacity = 0;
+	for ( unsigned long int i = 0; i < array_size(cores); i++ ) 
+		total_capacity += core_capacity(array_get(cores, i));
+
+	queue_tt all_tasks = queue_create();
+	while ( (queue_size(all_tasks) < total_capacity) && ( (queue_size(orphan_tasks) + queue_size(waiting_tasks)) > 0 ) )
+	{
+		if ( queue_size(orphan_tasks) > 0 )
+			queue_insert(all_tasks, queue_remove(orphan_tasks));
+		else 
+			queue_insert(all_tasks, queue_remove(waiting_tasks));
+	}	
+	int tasks_size = queue_size(all_tasks);
 
 
 	int **values = (int**) malloc(sizeof(int*) * tasks_size);
 	for ( int i = 0; i < tasks_size; i++ )
 	{
-		task_tt curr_task = queue_peek(tasks, i);
+		task_tt curr_task = queue_peek(all_tasks, i);
 		values[i] = (int*) malloc(sizeof(int) * winsize);
 		unsigned long int mem_ptr = task_memptr(curr_task);
 		int* lines = task_lineacc(curr_task);
 
 		// Getting the last WINSIZE accesses
-		for ( int j = 0; j < winsize; j++ )
+		if ( mem_ptr != 0 )
 		{
-			values[i][j] = lines[(mem_ptr - winsize) + j];
+			for ( int j = 0; j < winsize; j++ )
+			{
+				values[i][j] = lines[(mem_ptr - winsize) + j];
+			}
+		}
+		else 
+		{
+			for ( int j = 0; j < winsize; j++ )
+			{
+				values[i][j] = 0;
+			}
 		}
 	}
 
-	kmeans_start(k, all_tasks, tasks, values, tasks_size);
+	kmeans_start(k, all_buckets, all_tasks, values, tasks_size);
+	
 	for ( int i = 0; i < tasks_size; i++ ) 
 	{
 		free(values[i]);
@@ -489,6 +642,7 @@ static void model_optimization(struct workload *w, struct model *m, array_tt cor
 	array_tt all_buckets = (array_tt) workload_arrtasks(w);
 	/* Orphan tasks. Tasks that were processed, atleast once, and are waiting for a free core to be processed again. */
 	queue_tt orphan_tasks = (queue_tt) array_get(all_buckets, array_size(all_buckets) - 2);
+	/* Waiting tasks. Tasks that were not processed before and are waiting for a free core to be processed. */
 	queue_tt waiting_tasks = (queue_tt) array_get(all_buckets, array_size(all_buckets) - 1);
 
 	int total_capacity = 0;
@@ -505,6 +659,7 @@ static void model_optimization(struct workload *w, struct model *m, array_tt cor
 	}
 	
 	model_train(m, cores, all_buckets, all_tasks); 
+	queue_destroy(all_tasks);
 }
 
 /**
@@ -526,10 +681,13 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 	assert(strategy != NULL);
 	assert(processer != NULL);
 
+	g_iterator = (int*) malloc(sizeof(int) * array_size(cores));
+	for ( unsigned long int i = 0; i < array_size(cores); i++ ) g_iterator[i] = 0;
+
 	RAM_tt RAM = RAM_init(w);
 	cores_spawn(cores, strategy->pincores);
 	strategy->init(w, batchsize);
-	processer->init(w, cores, &g_iterator, RAM);
+	processer->init(w, cores, g_iterator, RAM);
 
     processing = queue_create();
 	/* 
@@ -555,41 +713,44 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 		for ( /* noop */; workload_totaltasks(w) > 0; /* noop */)
 		{    
 			controller = 0;
-			workload_checktasks(w, g_iterator);
+
+			int max_g_iterator = -1;
+			int aux_g_iterator = 0;
+			for ( unsigned long int i = 0; i < array_size(cores); i++ ) if ( max_g_iterator < g_iterator[i] ) max_g_iterator = g_iterator[i]; 
+			workload_checktasks(w, max_g_iterator);
 
 			while ( workload_currtasks(w) < batchsize && workload_currtasks(w) != workload_totaltasks(w) )
 			{
-				workload_checktasks(w, g_iterator);
-				g_iterator++;
+				aux_g_iterator++;
+				workload_checktasks(w, max_g_iterator + aux_g_iterator);
 			}
+
+			for ( unsigned long int i = 0; i < array_size(cores); i++ ) g_iterator[i] += aux_g_iterator;
 			
 			/* Number of already processed tasks, i.e., Number of tasks in our second-from-last queue. */
 			// int num_tasks = queue_size( (queue_tt) array_get(workload_arrtasks(w), array_size(workload_arrtasks(w)) - 2) );
 
 
-			/* Need to analyse which is better. */
+			// /* Need to analyse which is better. */
 			// if ( num_tasks >= batchsize )
-			// 	group(w, winsize, k);
+			// 	group(w, winsize, k, cores);
 			// else 
 			// 	populate_queues_opt(w, cores, array_size(cores));
-			group(w, winsize, k);
+			group(w, winsize, k, cores);
 
 
 			/* Scheduling tasks to ready cores. */
 
 			while ( !queue_empty(ready) )
 			{
-				core_tt c = choose_core(ready);
+				core_tt c = choose_core(ready, g_iterator);
 
 				/* Scheduling with core's "piece" of workload. */
 				queue_contention = strategy->sched(c, (queue_tt) array_get(workload_arrtasks(w), core_getcid(c)));
 				controller += queue_contention;
-
-				if ( controller != 0 )
-				{
-					if ( queue_contention == 0 ) g_iterator--;
-					queue_insert(processing, c);
-				} else queue_insert(ready, c);
+				
+				for ( unsigned long int i = 0; i < array_size(cores); i++ ) g_iterator[i] += queue_contention; 
+				queue_insert(processing, c);
 
 				core_set_contention(c, -(queue_contention));
 			}
@@ -605,13 +766,19 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 		for ( /* noop */; workload_totaltasks(w) > 0; /* noop */)
 		{    
 			controller = 0;
-			workload_checktasks(w, g_iterator);
+
+			int max_g_iterator = -1;
+			int aux_g_iterator = 0;
+			for ( unsigned long int i = 0; i < array_size(cores); i++ ) if ( max_g_iterator < g_iterator[i] ) max_g_iterator = g_iterator[i]; 
+			workload_checktasks(w, max_g_iterator);
 
 			while ( workload_currtasks(w) < batchsize && workload_currtasks(w) != workload_totaltasks(w) )
 			{
-				workload_checktasks(w, g_iterator);
-				g_iterator++;
+				aux_g_iterator++;
+				workload_checktasks(w, max_g_iterator + aux_g_iterator);
 			}
+
+			for ( unsigned long int i = 0; i < array_size(cores); i++ ) g_iterator[i] += aux_g_iterator;
 			
 			populate_queues_opt(w, cores, array_size(cores));
 
@@ -619,17 +786,14 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 
 			while ( !queue_empty(ready) )
 			{
-				core_tt c = choose_core(ready);
+				core_tt c = choose_core(ready, g_iterator);
 
 				/* Scheduling with core's "piece" of workload. */
 				queue_contention = strategy->sched(c, (queue_tt) array_get(workload_arrtasks(w), core_getcid(c)));
 				controller += queue_contention;
-
-				if ( controller != 0 )
-				{
-					if ( queue_contention == 0 ) g_iterator--;
-					queue_insert(processing, c);
-				} else queue_insert(ready, c);
+				
+				for ( unsigned long int i = 0; i < array_size(cores); i++ ) g_iterator[i] += queue_contention; 
+				queue_insert(processing, c);
 
 				core_set_contention(c, -(queue_contention));
 			}
@@ -646,18 +810,24 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 		for ( /* noop */; workload_totaltasks(w) > 0; /* noop */)
 		{    
 			controller = 0;
-			workload_checktasks(w, g_iterator);
+			int max_g_iterator = -1;
+			int aux_g_iterator = 0;
+			for ( unsigned long int i = 0; i < array_size(cores); i++ ) if ( max_g_iterator < g_iterator[i] ) max_g_iterator = g_iterator[i]; 
+			
+			workload_checktasks(w, max_g_iterator);
 
 			while ( workload_currtasks(w) < batchsize && workload_currtasks(w) != workload_totaltasks(w) )
 			{
-				workload_checktasks(w, g_iterator);
-				g_iterator++;
+				aux_g_iterator++;
+				workload_checktasks(w, max_g_iterator + aux_g_iterator);
 			}
+
+			for ( unsigned long int i = 0; i < array_size(cores); i++ ) g_iterator[i] += aux_g_iterator;
 			
 			/* Number of already processed tasks, i.e., Number of tasks in our second-from-last queue. */
 			// int num_tasks = queue_size( (queue_tt) array_get(workload_arrtasks(w), array_size(workload_arrtasks(w)) - 2) );
 
-			/* Need to analyse which is better. */
+			// /* Need to analyse which is better. */
 			// if ( num_tasks >= batchsize )
 			// 	model_optimization(w, model, cores);
 			// else
@@ -668,17 +838,14 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 
 			while ( !queue_empty(ready) )
 			{
-				core_tt c = choose_core(ready);
+				core_tt c = choose_core(ready, g_iterator);
 
 				/* Scheduling with core's "piece" of workload. */
 				queue_contention = strategy->sched(c, (queue_tt) array_get(workload_arrtasks(w), core_getcid(c)));
 				controller += queue_contention;
 
-				if ( controller != 0 )
-				{
-					if ( queue_contention == 0 ) g_iterator--;
-					queue_insert(processing, c);
-				} else queue_insert(ready, c);
+				for ( unsigned long int i = 0; i < array_size(cores); i++ ) g_iterator[i] += queue_contention; 
+				queue_insert(processing, c);
 
 				core_set_contention(c, -(queue_contention));
 			}
@@ -696,54 +863,33 @@ void simsched(workload_tt w, array_tt cores, const struct scheduler *strategy, c
 		for ( /* noop */ ; workload_totaltasks(w) > 0 ; /* noop */ )
 		{	
 			controller = 0;
-			workload_checktasks(w, g_iterator);
 
-			/* 
-			   Idle. 
-			   While no task arrived. 
-			*/
-			while ( workload_currtasks(w) < batchsize && workload_currtasks(w) != workload_totaltasks(w) ) 
-			{ 
-				g_iterator++;
-				workload_checktasks(w, g_iterator);
+			int max_g_iterator = -1;
+			int aux_g_iterator = 0;
+			for ( unsigned long int i = 0; i < array_size(cores); i++ ) if ( max_g_iterator < g_iterator[i] ) max_g_iterator = g_iterator[i]; 
+			workload_checktasks(w, max_g_iterator);
+
+			while ( workload_currtasks(w) < batchsize && workload_currtasks(w) != workload_totaltasks(w) )
+			{
+				aux_g_iterator++;
+				workload_checktasks(w, max_g_iterator + aux_g_iterator);
 			}
 
+			for ( unsigned long int i = 0; i < array_size(cores); i++ ) g_iterator[i] += aux_g_iterator;
+
 			populate_queues_not_opt(w, cores);
-
 			/* Scheduling tasks to ready cores. */
-			while(!queue_empty(ready))
+			while ( !queue_empty(ready) )
 			{
-				core_tt c = choose_core(ready);
+				core_tt c = choose_core(ready, g_iterator);
 
-				/* Scheduling with entire workload. */
-				queue_contention = strategy->sched(c, (queue_tt) array_get(workload_arrtasks(w), array_size(workload_arrtasks(w)) - 2));
-
+				/* Scheduling with core's "piece" of workload. */
+				queue_contention = strategy->sched(c, (queue_tt) array_get(workload_arrtasks(w), core_getcid(c)));
 				controller += queue_contention;
+				
+				for ( unsigned long int i = 0; i < array_size(cores); i++ ) g_iterator[i] += queue_contention; 
+				queue_insert(processing, c);
 
-				/* If any task was scheduled, send all cores to processing. */
-				if ( controller != 0 )
-				{
-					/* 
-						But if none were scheduled to current core, we must desconsider that we 'looked' for more tasks.
-						As if we knew, beforehand, that there weren't enough tasks yet.
-					*/
-					if ( queue_contention == 0 ) g_iterator--;
-
-					queue_insert(processing, c);
-
-				/* Otherwise, keep waiting until enough tasks arrive. */
-				} else queue_insert(ready, c);
-
-				/*
-					We are basing ourselves in g_iterator to indicate the waiting time of tasks (Check processing strategies).
-					Since we can't prevent a core from trying to schedule (increasing the g_iterator), 
-					we force those cores that shouldn't be affected by queue contention to have a negative
-					value (by counting how many tasks were scheduled and removing it from how many tasks given core have)
-					in order to remove this contention value from them.
-
-					So, instead of adding contention values we are removing, from total time spent by scheduling between all cores, 
-					the time that core 'c' spent scheduling.
-				*/
 				core_set_contention(c, -(queue_contention));
 			}
 			processer->process();

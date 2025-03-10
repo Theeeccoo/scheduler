@@ -10,6 +10,7 @@
 	/**@{*/
     #define Q_TABLE_FILE "q_table.dat" /**< Q-Table file.                */ 
     #define Q_EPS_FILE   "q_eps.txt"   /**< Current model Epsilon value. */
+    #define TERMINAL_STATE_INDEX 256   /**< 2^8.                         */
 	/**@}*/
 
     /**

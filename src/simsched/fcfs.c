@@ -1,18 +1,18 @@
 /*
  * Copyright(C) 2016 Pedro H. Penna <pedrohenriquepenna@gmail.com>
- * 
+ *
  * This file is part of Scheduler.
  *
  * Scheduler is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or (at
  * your option) any later version.
- * 
+ *
  * Scheduler is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with Scheduler; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
@@ -40,12 +40,12 @@ static struct
 
 /**
  * @brief Initializes the FCFS scheduler.
- * 
+ *
  * @param workload  Target workload.
  * @param batchsize Batch size.
  */
 void scheduler_fcfs_init(workload_tt workload, int batchsize)
-{	
+{
 	/* Sanity check. */
 	assert(workload != NULL);
 	assert(batchsize > 0);
@@ -70,10 +70,10 @@ void scheduler_fcfs_end(void)
 
 /**
  * @brief FCFS scheduler. The first BATCHSIZE tasks will be scheduled to the first free core.
- * 
+ *
  * @param c     Target core.
  * @param tasks Mapped tasks to current core.
- * 
+ *
  * @returns Number of scheduled tasks,
  */
 int scheduler_fcfs_sched(core_tt c, queue_tt tasks)
@@ -93,11 +93,9 @@ int scheduler_fcfs_sched(core_tt c, queue_tt tasks)
 		wsize += task_work_left(curr_task);
 		n++;
 	}
-	
-	/* If any task was scheduled, global 'time' must increase based on number of scheduled tasks. */
-    g_iterator += ( n > 0 ) ? n : 1;	
 
-	return (n);
+
+	return n;
 }
 
 /**

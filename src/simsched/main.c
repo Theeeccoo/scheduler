@@ -105,8 +105,6 @@ static void usage(void)
 	printf("Options:\n");
 	printf("  --arch <filename>       Cores' architecture file.\n");
 	printf("  --process <name>        Cores' processing strategy.\n");
-	printf("           non-preemptive       Non-preemptive.\n");
-	printf("           random-preemptive    Random preemptive.\n");
 	printf("           rr-preemptive        Round-Robin Quantum = 10.\n");
 	printf("  --batchsize <number>    Batch size.\n");
 	printf("  --kernel <name>         Kernel complexity.\n");
@@ -122,7 +120,6 @@ static void usage(void)
 	printf("Schedulers:\n");
 	printf("  fcfs               First-Come, First-Served Scheduling.\n");
 	printf("  srtf               Shortest Remaining Time First.\n");
-	printf("  sca                Same Core Always.\n");
 
 
 	exit(EXIT_SUCCESS);
@@ -154,11 +151,11 @@ static workload_tt get_workload(const char *filename, int ncores)
 
 /**
  * @brief Gets cores.
- * 
+ *
  * @param afilename Input architecture filename.
  * @param ncores    Number of cores in architecture, will be obtained from "afilename"
- * 
- * @return Working cores. 
+ *
+ * @return Working cores.
 */
 static array_tt get_cores(const char *filename, int ncores)
 {
@@ -178,7 +175,7 @@ static array_tt get_cores(const char *filename, int ncores)
 	assert(ncores <= read_cores);
 
 	cores = array_create(ncores);
-	
+
 	for (int i = 0; i < ncores; i++)
 	{
         core_tt c;      /** Core.                       */
@@ -186,7 +183,7 @@ static array_tt get_cores(const char *filename, int ncores)
 		int cache_line; /** Number of cache lines.      */
 		int cache_ways; /** Number of cache ways.       */
 		int num_blocks; /** Number of blocks per way    */
-		
+
 		assert(fscanf(file, "%d", &capacity) == 1);
 		assert(fscanf(file, "%d", &cache_line) == 1);
 		assert(fscanf(file, "%d", &cache_ways) == 1);
@@ -276,19 +273,15 @@ static void readargs(int argc, const char **argv)
 			afilename = argv[++i];
 		else if (!strcmp(argv[i], "--process"))	{
 			i ++;
-			if (!strcmp(argv[i], "non-preemptive"))
-				args.processer = (non_preemptive);
-			else if (!strcmp(argv[i], "random-preemptive"))
-				args.processer = (random_preemptive);
-			else if (!strcmp(argv[i], "rr-preemptive"))
+			if (!strcmp(argv[i], "rr-preemptive"))
 				args.processer = (rr_preemptive);
-			else 
+			else
 				/* Sanity check. */
 				error("invalid core processing strategy.");
 		} else if (!strcmp(argv[i], "--batchsize"))
 			args.batchsize = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "--input"))
-			wfilename = argv[++i]; 
+			wfilename = argv[++i];
 		else if (!strcmp(argv[i], "--kernel"))
 			kernelname = argv[++i];
 		else if (!strcmp(argv[i], "--ncores"))
@@ -310,8 +303,6 @@ static void readargs(int argc, const char **argv)
                 args.scheduler = sched_fcfs;
 			else if (!strcmp(argv[i], "srtf"))
 				args.scheduler = sched_srtf;
-			else if (!strcmp(argv[i], "sca"))
-				args.scheduler = sched_sca;
 			else
 				error("invalid option or unsupported scheduling strategy");
 

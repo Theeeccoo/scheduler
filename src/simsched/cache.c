@@ -416,9 +416,10 @@ bool cache_check_addr(const struct cache *ce, struct mem *mem)
     bool found = false;
 
     /* Which set it was mapped to. */
-    unsigned long int tag = mem_physical_addr(mem) * PAGE_SIZE;
+    // unsigned long int tag = mem_physical_addr(mem) * PAGE_SIZE;
+    unsigned long int tag = mem_physical_addr(mem) / ce->num_sets;
     int mem_offset = mem_addr_offset(mem);
-    int cache_set = tag % ce->num_sets;
+    int cache_set = mem_physical_addr(mem) % ce->num_sets;
     struct cache_set *cs = ce->sets[cache_set];
 
     /* Searching */
@@ -450,11 +451,11 @@ void cache_replace(struct cache *ce, struct mem *mem)
     assert(mem != NULL);
 
     /* Which set it was mapped to. */
-    unsigned long int tag = mem_physical_addr(mem) * PAGE_SIZE;
+    unsigned long int tag = mem_physical_addr(mem) / ce->num_sets;
     int mem_offset = mem_addr_offset(mem);
-    int cache_set = tag % ce->num_sets;
+    int cache_set = mem_physical_addr(mem) % ce->num_sets;
     struct cache_set *cs = ce->sets[cache_set];
-
+    
     for ( int i = 0; i < ce->num_ways; i++ )
     {
         /* 
